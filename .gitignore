@@ -1,0 +1,6 @@
+notebooks/
+data/
+models/
+.vscode/
+__pycache__
+.venv/
