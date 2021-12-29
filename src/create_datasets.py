@@ -51,14 +51,14 @@ def create_datasets(args):
     # Create and dump datasets
     print("Processing train dataset...")
     train_dataset_prepared = prepare_dataset(train_dataset, annotations)
-    dump_train_dataset_path = os.path.join(args.save_data_path, f"train_dataset.json")
+    dump_train_dataset_path = os.path.join(args.save_data_path, "train_dataset.json")
     print(
         f"Dumping training dataset of size {len(train_dataset_prepared)} at: {dump_train_dataset_path}"
     )
     json.dump(train_dataset_prepared, open(dump_train_dataset_path, "w"))
     print("Processing validation dataset...")
     val_dataset_prepared = prepare_dataset(val_dataset, annotations)
-    dump_val_dataset_path = os.path.join(args.save_data_path, f"val_dataset.json")
+    dump_val_dataset_path = os.path.join(args.save_data_path, "val_dataset.json")
     print(
         f"Dumping validation dataset of size {len(val_dataset_prepared)} at: {dump_val_dataset_path}"
     )
