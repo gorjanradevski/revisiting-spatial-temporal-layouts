@@ -4,7 +4,31 @@
 
 Codebase for [Revisiting spatio-temporal layouts for compositional action recognition](https://arxiv.org/abs/2111.01936).
 
-New year's arrival (01.01.2022) > Code release date > CVPR 2022 deadline (17.11.2021)...
+## Preparing the data
+
+Rougly put, you need to download the data splits and labels from [here](https://github.com/joaanna/something_else/tree/master/code/dataset_splits) and the annotations from [here](https://drive.google.com/drive/folders/1XqZC2jIHqrLPugPOVJxCH_YWa275PBrZ). Then, use the ```create_datasets.py``` script to create the training and test datasets. More detailed istructions will be released soon.
+
+## Training and Inference
+
+The codebase currently only supports training and inference of STLT models. Refer to the ```train_stlt.py``` and the ```inference_stlt.py``` scripts. More detailed instructions will be released soon.
+
+## Model Zoo
+
+| Model | Dataset | Download |
+| :--- | :--- | :--- |
+| STLT | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1mSwN68F6UgaZsJ91hFt9up4XPlnP8ouz/view?usp=sharing) |
+| STLT | Something-Else Compositional Split Oracle | [Link](https://drive.google.com/file/d/1PSIEgGhE9XwLwW-XMvWiRUZZhCVeSxbT/view?usp=sharing) |
+| STLT | Something-Else 10-shot Detections | [Link](https://drive.google.com/file/d/1W3ezhdTW7xLurSfiW36QIzeR21Zcatmt/view?usp=sharing) |
+| STLT | Something-Else 5-shot Detections | [Link](https://drive.google.com/file/d/1V98gUlQitPB6uQ0pYBfCc9_vYXcsvajO/view?usp=sharing) |
+| STLT | Something-Else 10-shot Oracle | [Link](https://drive.google.com/file/d/10YkKPXNrjQkMIxrFSMb4lR_csgnLYSyb/view?usp=sharing) |
+| STLT | Something-Else 5-shot Oracle | [Link](https://drive.google.com/file/d/1_4yxNvgMT_mzKAveXdOzTYo53ZOKwT22/view?usp=sharing) |
+| STLT | Something-Something V2 Regular Split | [Link](https://drive.google.com/file/d/1aBMpqpJ2H6prF5hfBaZ5u9iyslL1jSdv/view?usp=sharing) |
+
+More models (CACNF in the paper) will be released soon.
+
+## Citation
+
+If you find our code useful for your own research please use the following BibTeX entry.
 
 ```tex
 @article{radevski2021revisiting,

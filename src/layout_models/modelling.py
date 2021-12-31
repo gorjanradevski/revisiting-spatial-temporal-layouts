@@ -6,7 +6,7 @@ from torch.nn import functional as F
 from utils.model_utils import generate_square_subsequent_mask
 
 
-class StltConfig:
+class StltModelConfig:
     def __init__(self, unique_categories: int, num_classes: int, **kwargs):
         self.num_classes = num_classes
         self.unique_categories = unique_categories
@@ -37,7 +37,7 @@ class StltConfig:
 
 
 class CategoryBoxEmbeddings(nn.Module):
-    def __init__(self, config: StltConfig):
+    def __init__(self, config: StltModelConfig):
         super(CategoryBoxEmbeddings, self).__init__()
         self.category_embeddings = nn.Embedding(
             embedding_dim=config.hidden_size,
@@ -61,7 +61,7 @@ class CategoryBoxEmbeddings(nn.Module):
 
 
 class SpatialTransformer(nn.Module):
-    def __init__(self, config: StltConfig):
+    def __init__(self, config: StltModelConfig):
         super(SpatialTransformer, self).__init__()
         self.category_box_embeddings = CategoryBoxEmbeddings(config)
         self.encoder_layer = nn.TransformerEncoderLayer(
@@ -103,7 +103,7 @@ class SpatialTransformer(nn.Module):
 
 
 class FramesEmbeddings(nn.Module):
-    def __init__(self, config: StltConfig):
+    def __init__(self, config: StltModelConfig):
         super(FramesEmbeddings, self).__init__()
         self.layout_embedding = SpatialTransformer(config)
         self.position_embeddings = nn.Embedding(
@@ -133,7 +133,7 @@ class FramesEmbeddings(nn.Module):
 
 
 class StltBackbone(nn.Module):
-    def __init__(self, config: StltConfig):
+    def __init__(self, config: StltModelConfig):
         super(StltBackbone, self).__init__()
         self.frames_embeddings = FramesEmbeddings(config)
         encoder_layer = nn.TransformerEncoderLayer(
@@ -148,7 +148,7 @@ class StltBackbone(nn.Module):
         )
 
     @classmethod
-    def from_pretrained(cls, config: StltConfig):
+    def from_pretrained(cls, config: StltModelConfig):
         model = cls(config)
         model.load_state_dict(torch.load(config.load_backbone_path, map_location="cpu"))
         return model
@@ -173,7 +173,7 @@ class StltBackbone(nn.Module):
 
 
 class ClassificationHead(nn.Module):
-    def __init__(self, config: StltConfig):
+    def __init__(self, config: StltModelConfig):
         super(ClassificationHead, self).__init__()
         self.fc1 = nn.Linear(config.hidden_size, config.hidden_size)
         self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
@@ -184,7 +184,7 @@ class ClassificationHead(nn.Module):
 
 
 class Stlt(nn.Module):
-    def __init__(self, config: StltConfig):
+    def __init__(self, config: StltModelConfig):
         super(Stlt, self).__init__()
         self.config = config
         if config.load_backbone_path is not None:

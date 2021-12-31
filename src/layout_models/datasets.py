@@ -1,10 +1,9 @@
 import json
 import re
-from typing import Dict, List
 
 import torch
 from torch.utils.data import Dataset
-from utils.constants import MAX_NUM_OBJECTS, category2id, frame2type
+from utils.constants import category2id, frame2type
 from utils.data_utils import (
     fix_box,
     get_test_layout_indices,
@@ -13,21 +12,33 @@ from utils.data_utils import (
 )
 
 
-class StltDataset(Dataset):
+class StltDataConfig:
     def __init__(
         self,
         dataset_path: str,
-        labels: Dict[str, str],
-        videoid2size: Dict[str, List[float]],
-        num_frames: int = 16,
-        train: bool = False,
+        labels_path: str,
+        videoid2size_path: str,
+        train: bool,
+        **kwargs
+    ):
+        self.dataset_path = dataset_path
+        self.labels_path = labels_path
+        self.videoid2size_path = videoid2size_path
+        self.train = train
+        self.num_frames = kwargs.pop("num_frames", 16)
+        self.max_num_objects = kwargs.pop("max_num_objects", 7)
+
+
+class StltDataset(Dataset):
+    def __init__(
+        self,
+        config: StltDataConfig,
     ):
         # Load dataset JSON file
-        self.json_file = json.load(open(dataset_path))
-        self.labels = labels
-        self.videoid2size = videoid2size
-        self.num_frames = num_frames
-        self.train = train
+        self.config = config
+        self.json_file = json.load(open(self.config.dataset_path))
+        self.labels = json.load(open(self.config.labels_path))
+        self.videoid2size = json.load(open(self.config.videoid2size_path))
 
     def __len__(self):
         return len(self.json_file)
@@ -38,9 +49,9 @@ class StltDataset(Dataset):
         # Start loading
         num_frames = len(self.json_file[idx]["frames"])
         indices = (
-            sample_train_layout_indices(self.num_frames, num_frames)
-            if self.train
-            else get_test_layout_indices(self.num_frames, num_frames)
+            sample_train_layout_indices(self.config.num_frames, num_frames)
+            if self.config.train
+            else get_test_layout_indices(self.config.num_frames, num_frames)
         )
         boxes = []
         categories = []
@@ -68,19 +79,19 @@ class StltDataset(Dataset):
                 )
                 frame_categories.append(category2id[category_name])
             assert len(frame_boxes) == len(frame_categories)
-            while len(frame_boxes) != MAX_NUM_OBJECTS + 1:
+            while len(frame_boxes) != self.config.max_num_objects + 1:
                 frame_boxes.append(torch.full((4,), 0.0))
                 frame_categories.append(0)
             categories.append(torch.tensor(frame_categories))
             boxes.append(torch.stack(frame_boxes, dim=0))
         # Appending extract element
         # Boxes
-        extract_box = torch.full((MAX_NUM_OBJECTS + 1, 4), 0.0)
+        extract_box = torch.full((self.config.max_num_objects + 1, 4), 0.0)
         extract_box[0] = torch.tensor([0.0, 0.0, 1.0, 1.0])
         boxes.append(extract_box)
         boxes = torch.stack(boxes, dim=0)
         # Categories
-        extract_category = torch.full((MAX_NUM_OBJECTS + 1,), 0)
+        extract_category = torch.full((self.config.max_num_objects + 1,), 0)
         extract_category[0] = category2id["cls"]
         categories.append(extract_category)
         categories = torch.stack(categories, dim=0)
@@ -105,6 +116,9 @@ class StltDataset(Dataset):
 
 
 class StltCollater:
+    def __init__(self, config: StltDataConfig):
+        self.config = config
+
     def __call__(self, batch):
         (
             _,
@@ -117,11 +131,11 @@ class StltCollater:
 
         # https://github.com/pytorch/pytorch/issues/24816
         # Pad categories
-        pad_categories_tensor = torch.full((MAX_NUM_OBJECTS + 1,), 0)
+        pad_categories_tensor = torch.full((self.config.max_num_objects + 1,), 0)
         pad_categories_tensor[0] = category2id["cls"]
         categories = pad_sequence(categories, pad_tensor=pad_categories_tensor)
         # Pad boxes
-        pad_boxes_tensor = torch.full((MAX_NUM_OBJECTS + 1, 4), 0.0)
+        pad_boxes_tensor = torch.full((self.config.max_num_objects + 1, 4), 0.0)
         pad_boxes_tensor[0] = torch.tensor([0.0, 0.0, 1.0, 1.0])
         boxes = pad_sequence(boxes, pad_tensor=pad_boxes_tensor)
         # Pad frame types

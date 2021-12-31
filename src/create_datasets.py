@@ -35,14 +35,8 @@ def prepare_dataset(
 
 def create_datasets(args):
     print("Loading datasets...")
-    train_dataset = json.load(
-        open(os.path.join(args.load_data_path, "something-something-v2-train.json"))
-    )
-    val_dataset = json.load(
-        open(
-            os.path.join(args.load_data_path, "something-something-v2-validation.json")
-        )
-    )
+    train_dataset = json.load(open(args.train_data_path))
+    val_dataset = json.load(os.path.join(args.val_data_path))
     print("Loading annotations...")
     annotations = []
     for annotation_name in tqdm(natsorted(os.listdir(args.annotations_path))):
@@ -68,10 +62,16 @@ def create_datasets(args):
 def main():
     parser = argparse.ArgumentParser(description="Creates a dataset.")
     parser.add_argument(
-        "--load_data_path",
+        "--train_data_path",
         type=str,
         required=True,
-        help="From where to load the data.",
+        help="Path to the default training dataset.",
+    )
+    parser.add_argument(
+        "--val_data_path",
+        type=str,
+        required=True,
+        help="Path to the default validation dataset.",
     )
     parser.add_argument(
         "--annotations_path",

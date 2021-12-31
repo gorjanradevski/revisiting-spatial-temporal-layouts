@@ -1,15 +1,19 @@
-import json
 import logging
 
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from layout_models.datasets import StltCollater, StltDataset, category2id
-from layout_models.modelling import Stlt, StltConfig
+from layout_models.datasets import (
+    StltCollater,
+    StltDataConfig,
+    StltDataset,
+    category2id,
+)
+from layout_models.modelling import Stlt, StltModelConfig
+from utils.data_utils import get_device
 from utils.evaluation import Evaluator
 from utils.parser import Parser
-from utils.data_utils import get_device
 
 
 @torch.no_grad()
@@ -20,17 +24,16 @@ def inference(args):
     device = get_device(logger=logging.getLogger(__name__))
     # Prepare datasets
     logging.info("Preparing datasets...")
-    labels = json.load(open(args.labels_path))
-    videoid2size = json.load(open(args.videoid2size_path))
-    test_dataset = StltDataset(
-        args.test_dataset_path,
-        labels,
-        videoid2size,
+    data_config = StltDataConfig(
+        dataset_path=args.test_dataset_path,
+        labels_path=args.labels_path,
+        videoid2size_path=args.videoid2size_path,
         num_frames=args.layout_num_frames,
         train=False,
     )
+    test_dataset = StltDataset(data_config)
     logging.info(f"Inference on {len(test_dataset)}")
-    collater = StltCollater()
+    collater = StltCollater(data_config)
     # Prepare loaders
     test_loader = DataLoader(
         test_dataset,
@@ -41,16 +44,16 @@ def inference(args):
     )
     logging.info("Preparing model...")
     # Prepare model
-    config = StltConfig(
-        num_classes=len(labels),
+    model_config = StltModelConfig(
+        num_classes=len(test_dataset.labels),
         unique_categories=len(category2id),
         num_spatial_layers=args.num_spatial_layers,
         num_temporal_layers=args.num_temporal_layers,
     )
     logging.info("==================================")
-    logging.info(f"The model's configuration is:\n{config}")
+    logging.info(f"The model's configuration is:\n{model_config}")
     logging.info("==================================")
-    model = Stlt(config).to(device)
+    model = Stlt(model_config).to(device)
     model.load_state_dict(torch.load(args.checkpoint_path, map_location=device))
     model.train(False)
     logging.info("Starting inference...")

@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 
@@ -10,14 +9,15 @@ from tqdm import tqdm
 
 from layout_models.datasets import (
     StltCollater,
+    StltDataConfig,
     StltDataset,
     category2id,
 )
-from layout_models.modelling import Stlt, StltConfig
-from utils.evaluation import Evaluator
-from utils.train_utils import add_weight_decay, get_linear_schedule_with_warmup
-from utils.parser import Parser
+from layout_models.modelling import Stlt, StltModelConfig
 from utils.data_utils import get_device
+from utils.evaluation import Evaluator
+from utils.parser import Parser
+from utils.train_utils import add_weight_decay, get_linear_schedule_with_warmup
 
 
 def train(args):
@@ -34,25 +34,28 @@ def train(args):
     device = get_device(logger=logging.getLogger(__name__))
     # Prepare datasets
     logging.info("Preparing datasets...")
-    labels = json.load(open(args.labels_path))
-    videoid2size = json.load(open(args.videoid2size_path))
-    train_dataset = StltDataset(
-        args.train_dataset_path,
-        labels,
-        videoid2size,
+    # Prepare train dataset
+    train_data_config = StltDataConfig(
+        dataset_path=args.train_dataset_path,
+        labels_path=args.labels_path,
+        videoid2size_path=args.videoid2size_path,
         num_frames=args.layout_num_frames,
         train=True,
     )
-    val_dataset = StltDataset(
-        args.val_dataset_path,
-        labels,
-        videoid2size,
+    train_dataset = StltDataset(train_data_config)
+    # Prepare validation dataset
+    val_data_config = StltDataConfig(
+        dataset_path=args.val_dataset_path,
+        labels_path=args.labels_path,
+        videoid2size_path=args.videoid2size_path,
         num_frames=args.layout_num_frames,
         train=False,
     )
+    val_dataset = StltDataset(val_data_config)
     logging.info(f"Training on {len(train_dataset)}")
     logging.info(f"Validating on {len(val_dataset)}")
-    collater = StltCollater()
+    # Identical collating for training and evaluation
+    collater = StltCollater(val_data_config)
     # Prepare loaders
     train_loader = DataLoader(
         train_dataset,
@@ -71,8 +74,8 @@ def train(args):
     )
     logging.info("Preparing model...")
     # Prepare model
-    config = StltConfig(
-        num_classes=len(labels),
+    model_config = StltModelConfig(
+        num_classes=len(train_dataset.labels),
         unique_categories=len(category2id),
         num_spatial_layers=args.num_spatial_layers,
         num_temporal_layers=args.num_temporal_layers,
@@ -80,9 +83,9 @@ def train(args):
         freeze_backbone=args.freeze_backbone,
     )
     logging.info("==================================")
-    logging.info(f"The model's configuration is:\n{config}")
+    logging.info(f"The model's configuration is:\n{model_config}")
     logging.info("==================================")
-    model = Stlt(config).to(device)
+    model = Stlt(model_config).to(device)
     # Prepare loss and optimizer
     criterion = nn.CrossEntropyLoss()
     parameters = add_weight_decay(model, args.weight_decay)
