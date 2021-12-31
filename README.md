@@ -4,6 +4,10 @@
 
 Codebase for [Revisiting spatio-temporal layouts for compositional action recognition](https://arxiv.org/abs/2111.01936).
 
+## Dependencies
+
+If you use [Poetry](https://python-poetry.org/), running ```poetry install``` inside the project will suffice.
+
 ## Preparing the data
 
 Rougly put, you need to download the data splits and labels from [here](https://github.com/joaanna/something_else/tree/master/code/dataset_splits) and the annotations from [here](https://drive.google.com/drive/folders/1XqZC2jIHqrLPugPOVJxCH_YWa275PBrZ). Then, use the ```create_datasets.py``` script to create the training and test datasets. More detailed istructions will be released soon.
