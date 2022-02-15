@@ -10,7 +10,7 @@ If you use [Poetry](https://python-poetry.org/), running ```poetry install``` in
 
 ## Preparing the data
 
-Rougly put, you need to download the data splits and labels from [here](https://github.com/joaanna/something_else/tree/master/code/dataset_splits) and the annotations from [here](https://drive.google.com/drive/folders/1XqZC2jIHqrLPugPOVJxCH_YWa275PBrZ). Then, use the ```create_datasets.py``` script to create the training and test datasets. More detailed istructions will be released soon.
+Roughly put, you need to download the [data splits and labels](https://github.com/joaanna/something_else/tree/master/code/dataset_splits), the [annotations](https://drive.google.com/drive/folders/1XqZC2jIHqrLPugPOVJxCH_YWa275PBrZ), and the [video sizes](https://drive.google.com/file/d/1ANaDAxXoA63CA9zXalnmaskqfO4cftW4/view?usp=sharing). Then, use the ```create_datasets.py``` script to create the training and test datasets. More detailed istructions will be released soon.
 
 ## Training and Inference
 
@@ -28,7 +28,7 @@ The codebase currently only supports training and inference of STLT models. Refe
 | STLT | Something-Else 5-shot Oracle | [Link](https://drive.google.com/file/d/1_4yxNvgMT_mzKAveXdOzTYo53ZOKwT22/view?usp=sharing) |
 | STLT | Something-Something V2 Regular Split | [Link](https://drive.google.com/file/d/1aBMpqpJ2H6prF5hfBaZ5u9iyslL1jSdv/view?usp=sharing) |
 
-More models (CACNF in the paper) will be released soon.
+More models trained on Something-Else and Charades/Action Genome will be released soon.
 
 ## Citation
 
