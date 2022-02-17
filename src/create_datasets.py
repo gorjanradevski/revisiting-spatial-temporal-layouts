@@ -36,7 +36,7 @@ def prepare_dataset(
 def create_datasets(args):
     print("Loading datasets...")
     train_dataset = json.load(open(args.train_data_path))
-    val_dataset = json.load(os.path.join(args.val_data_path))
+    val_dataset = json.load(open(os.path.join(args.val_data_path)))
     print("Loading annotations...")
     annotations = []
     for annotation_name in tqdm(natsorted(os.listdir(args.annotations_path))):
