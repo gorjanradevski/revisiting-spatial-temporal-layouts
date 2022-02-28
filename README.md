@@ -26,8 +26,10 @@ The codebase currently only supports training and inference of STLT models. Refe
 | :--- | :--- | :--- |
 | STLT | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1mSwN68F6UgaZsJ91hFt9up4XPlnP8ouz/view?usp=sharing) |
 | STLT | Something-Else Compositional Split Oracle | [Link](https://drive.google.com/file/d/1PSIEgGhE9XwLwW-XMvWiRUZZhCVeSxbT/view?usp=sharing) |
+| STLT backbone | Something-Else Detections Base split | [Link](https://drive.google.com/file/d/1CnQ89ipXjFkSkWIxaMzDVszlQ3LJ1ctK/view?usp=sharing) |
 | STLT | Something-Else 10-shot Detections | [Link](https://drive.google.com/file/d/1W3ezhdTW7xLurSfiW36QIzeR21Zcatmt/view?usp=sharing) |
 | STLT | Something-Else 5-shot Detections | [Link](https://drive.google.com/file/d/1V98gUlQitPB6uQ0pYBfCc9_vYXcsvajO/view?usp=sharing) |
+| STLT backbone | Something-Else Oracle Base split | [Link](https://drive.google.com/file/d/1hIuDy8tmD83ibY0oT1fhQBpUSs8qMsWK/view?usp=sharing) |
 | STLT | Something-Else 10-shot Oracle | [Link](https://drive.google.com/file/d/10YkKPXNrjQkMIxrFSMb4lR_csgnLYSyb/view?usp=sharing) |
 | STLT | Something-Else 5-shot Oracle | [Link](https://drive.google.com/file/d/1_4yxNvgMT_mzKAveXdOzTYo53ZOKwT22/view?usp=sharing) |
 | STLT | Something-Something V2 Regular Split | [Link](https://drive.google.com/file/d/1aBMpqpJ2H6prF5hfBaZ5u9iyslL1jSdv/view?usp=sharing) |

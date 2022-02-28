@@ -190,7 +190,7 @@ class Stlt(nn.Module):
         if config.load_backbone_path is not None:
             self.stlt_backbone = StltBackbone.from_pretrained(config)
             if config.freeze_backbone:
-                for param in self.stlt_output.parameters():
+                for param in self.stlt_backbone.parameters():
                     param.requires_grad = False
         else:
             self.stlt_backbone = StltBackbone(config)
