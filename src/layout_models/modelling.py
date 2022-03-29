@@ -45,6 +45,7 @@ class CategoryBoxEmbeddings(nn.Module):
             padding_idx=0,
         )
         self.box_embedding = nn.Linear(4, config.hidden_size)
+        self.score_embeddings = nn.Linear(1, config.hidden_size)
         self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -52,8 +53,9 @@ class CategoryBoxEmbeddings(nn.Module):
         category_embeddings = self.category_embeddings(batch["categories"])
         boxes_embeddings = self.box_embedding(batch["boxes"])
         embeddings = category_embeddings + boxes_embeddings
-        if "video_features" in batch:
-            embeddings += self.box_features_embedding(batch["video_features"])
+        if "scores" in batch:
+            score_embeddings = self.score_embeddings(batch["scores"].unsqueeze(-1))
+            embeddings += score_embeddings
         embeddings = self.layer_norm(embeddings)
         embeddings = self.dropout(embeddings)
 

@@ -6,14 +6,24 @@ Codebase for [Revisiting spatio-temporal layouts for compositional action recogn
 
 ## Dependencies
 
-If you use [Poetry](https://python-poetry.org/), running ```poetry install``` inside the project will suffice.
+If you use [Poetry](https://python-poetry.org/), running ```poetry install``` inside the project should suffice.
 
 ## Preparing the data
 
-Roughly put, you need to download the [data splits and labels](https://github.com/joaanna/something_else/tree/master/code/dataset_splits), the [annotations](https://drive.google.com/drive/folders/1XqZC2jIHqrLPugPOVJxCH_YWa275PBrZ), and the [video sizes](https://drive.google.com/file/d/1ANaDAxXoA63CA9zXalnmaskqfO4cftW4/view?usp=sharing). Make sure that the annotations for the split you want to create datasets for are in a single directory. Then, use the ```create_datasets.py``` script to create the training and test datasets as:
+### Something-Something and Something-Else
+
+You need to download the [data splits and labels](https://github.com/joaanna/something_else/tree/master/code/dataset_splits), the [annotations](https://drive.google.com/drive/folders/1XqZC2jIHqrLPugPOVJxCH_YWa275PBrZ), and the [video sizes](https://drive.google.com/file/d/1ANaDAxXoA63CA9zXalnmaskqfO4cftW4/view?usp=sharing). Make sure that the annotations for the split you want to create datasets for are in a single directory. Then, use ```create_something_datasets.py``` to create the training and test datasets as:
 
 ```python
-python src/create_datasets.py --train_data_path "data/path-to-the-train-file.json" --val_data_path "data/path-to-the-val-file.json" --annotations_path "data/all-annotations-for-the-split/"
+python src/create_something_datasets.py --train_data_path "data/path-to-the-train-file.json" --val_data_path "data/path-to-the-val-file.json" --annotations_path "data/all-annotations-for-the-split/"
+```
+
+### Action-Genome
+
+You need to download the [Action Genome data](https://drive.google.com/drive/folders/1LGGPK_QgGbh9gH9SDFv_9LIhBliZbZys) and the [Charades data](https://ai2-public-datasets.s3-us-west-2.amazonaws.com/charades/Charades.zip). Then, use ```create_action_genome_datasets.py``` to create the training and test datasets as:
+
+```python
+python src/create_action_genome_datasets.py --action_genome_path "data/path-to-action-genome" --charades_path "data/path-to-charades" --save_datasets_path "data/directory-where-the-data-will-be-saved"
 ```
 
 ## Training and Inference
@@ -33,6 +43,8 @@ The codebase currently only supports training and inference of STLT models. Refe
 | STLT | Something-Else 10-shot Oracle | [Link](https://drive.google.com/file/d/10YkKPXNrjQkMIxrFSMb4lR_csgnLYSyb/view?usp=sharing) |
 | STLT | Something-Else 5-shot Oracle | [Link](https://drive.google.com/file/d/1_4yxNvgMT_mzKAveXdOzTYo53ZOKwT22/view?usp=sharing) |
 | STLT | Something-Something V2 Regular Split | [Link](https://drive.google.com/file/d/1aBMpqpJ2H6prF5hfBaZ5u9iyslL1jSdv/view?usp=sharing) |
+| STLT | Action Genome Oracle | [Link](https://drive.google.com/file/d/1xsQcosB-kNHW9WXRseR7jgMs_B8WsaG8/view?usp=sharing) |
+| STLT | Action Genome Detections | [Link](https://drive.google.com/file/d/1L1mfNIhI938UyM3lIfHFrmx7k5DZzf7m/view?usp=sharing) |
 
 More models trained on Something-Else and Charades/Action Genome will be released soon.
 

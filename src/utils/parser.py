@@ -5,6 +5,12 @@ class Parser:
     def __init__(self, parser_description: str):
         self.parser = argparse.ArgumentParser(description=parser_description)
         self.parser.add_argument(
+            "--dataset_name",
+            type=str,
+            default=None,
+            help="The name of the dataset, either something or action_genome",
+        )
+        self.parser.add_argument(
             "--log_filepath",
             type=str,
             default=None,
@@ -13,25 +19,25 @@ class Parser:
         self.parser.add_argument(
             "--train_dataset_path",
             type=str,
-            default="data/train_dataset.json",
+            default=None,
             help="Path to the train dataset.",
         )
         self.parser.add_argument(
             "--val_dataset_path",
             type=str,
-            default="data/val_dataset.json",
+            default=None,
             help="Path to the val dataset.",
         )
         self.parser.add_argument(
             "--test_dataset_path",
             type=str,
-            default="data/val_dataset.json",
+            default=None,
             help="Path to the test dataset.",
         )
         self.parser.add_argument(
             "--labels_path",
             type=str,
-            default="data/something-something-v2-labels.json",
+            default=None,
             help="Path to the labels.",
         )
         self.parser.add_argument(
@@ -45,6 +51,12 @@ class Parser:
             type=int,
             default=16,
             help="The number of layout frames to sample per video.",
+        )
+        self.parser.add_argument(
+            "--score_threshold",
+            type=float,
+            default=0.5,
+            help="The score threshold for the categories.",
         )
         self.parser.add_argument(
             "--num_spatial_layers",
