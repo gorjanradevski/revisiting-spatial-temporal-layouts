@@ -163,22 +163,22 @@ class Stlt(nn.Module):
         super(Stlt, self).__init__()
         self.config = config
         if config.load_backbone_path is not None:
-            self.stlt_backbone = StltBackbone.from_pretrained(config)
+            self.backbone = StltBackbone.from_pretrained(config)
             if config.freeze_backbone:
-                for param in self.stlt_backbone.parameters():
+                for param in self.backbone.parameters():
                     param.requires_grad = False
         else:
-            self.stlt_backbone = StltBackbone(config)
+            self.backbone = StltBackbone(config)
         self.prediction_head = ClassificationHead(config)
 
     def train(self, mode: bool):
         super(Stlt, self).train(mode)
         if self.config.load_backbone_path and self.config.freeze_backbone:
-            self.stlt_backbone.train(False)
+            self.backbone.train(False)
 
     def forward(self, batch: Dict[str, torch.Tensor]):
         # [Num. frames, Batch size, Hidden size]
-        stlt_output = self.stlt_backbone(batch)
+        stlt_output = self.backbone(batch)
         # [Batch size, Hidden size]
         batches = torch.arange(batch["categories"].size()[0]).to(
             batch["categories"].device
@@ -210,11 +210,11 @@ class Resnet3D(nn.Module):
             if isinstance(module, nn.BatchNorm3d):
                 module.train(False)
 
-    def forward_features(self, videos: torch.Tensor):
-        return self.resnet(videos)
+    def forward_features(self, batch):
+        return self.resnet(batch["videos"])
 
-    def forward(self, videos: torch.Tensor):
-        features = self.forward_features(videos)
+    def forward(self, batch):
+        features = self.forward_features(batch)
         features = self.avgpool(features).flatten(1)
         logits = self.classifier(features)
 
@@ -242,10 +242,10 @@ class TransformerResnet(nn.Module):
         )
         self.classifier = nn.Linear(config.hidden_size, config.num_classes)
 
-    def forward_features(self, videos: torch.Tensor):
+    def forward_features(self, batch):
         # We need the batch size for the CLS token
-        B = videos.shape[0]
-        features = self.resnet.forward_features(videos)
+        B = batch["videos"].shape[0]
+        features = self.resnet.forward_features(batch["videos"])
         # [Batch size, Hidden size, Temporal., Spatial., Spatial.]
         features = self.projector(features)
         # [Batch size, Hidden size, Seq. len]
@@ -262,9 +262,9 @@ class TransformerResnet(nn.Module):
 
         return features
 
-    def forward(self, videos: torch.Tensor):
+    def forward(self, batch):
         # [Seq. len, Batch size, Hidden size]
-        features = self.forward_features(videos)
+        features = self.forward_features(batch)
         # [Batch size, Hidden size]
         cls_state = features[0, :, :]
 

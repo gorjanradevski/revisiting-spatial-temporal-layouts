@@ -10,7 +10,7 @@ from tqdm import tqdm
 from modelling.datasets import DataConfig, datasets_factory, collaters_factory
 from modelling.models import models_factory
 from modelling.model_configs import model_configs_factory
-from utils.data_utils import get_device
+from utils.train_inference_utils import get_device
 from utils.evaluation import evaluators_factory
 from utils.parser import Parser
 from utils.train_inference_utils import (
@@ -39,7 +39,8 @@ def train(args):
         dataset_path=args.train_dataset_path,
         labels_path=args.labels_path,
         videoid2size_path=args.videoid2size_path,
-        num_frames=args.layout_num_frames,
+        layout_num_frames=args.layout_num_frames,
+        appearance_num_frames=args.appearance_num_frames,
         videos_path=args.videos_path,
         train=True,
     )
@@ -51,7 +52,8 @@ def train(args):
         dataset_path=args.val_dataset_path,
         labels_path=args.labels_path,
         videoid2size_path=args.videoid2size_path,
-        num_frames=args.layout_num_frames,
+        layout_num_frames=args.layout_num_frames,
+        appearance_num_frames=args.appearance_num_frames,
         videos_path=args.videos_path,
         train=False,
     )
@@ -83,7 +85,7 @@ def train(args):
     # Prepare model
     model_config = model_configs_factory[args.model_name](
         num_classes=num_classes,
-        num_frames=args.appearance_num_frames,
+        appearance_num_frames=args.appearance_num_frames,
         unique_categories=len(val_data_config.category2id),
         num_spatial_layers=args.num_spatial_layers,
         num_temporal_layers=args.num_temporal_layers,
@@ -149,7 +151,7 @@ def train(args):
             logging.info("=================================")
             torch.save(model.state_dict(), args.save_model_path)
             if args.save_backbone_path:
-                torch.save(model.stlt_backbone.state_dict(), args.save_backbone_path)
+                torch.save(model.backbone.state_dict(), args.save_backbone_path)
         for m in metrics.keys():
             logging.info(f"{m}: {round(metrics[m] * 100, 2)}")
 

@@ -7,7 +7,7 @@ from tqdm import tqdm
 from modelling.datasets import DataConfig, datasets_factory, collaters_factory
 from modelling.model_configs import model_configs_factory
 from modelling.models import models_factory
-from utils.data_utils import get_device
+from utils.train_inference_utils import get_device
 from utils.evaluation import evaluators_factory
 from utils.parser import Parser
 
@@ -24,7 +24,8 @@ def inference(args):
         dataset_path=args.test_dataset_path,
         labels_path=args.labels_path,
         videoid2size_path=args.videoid2size_path,
-        num_frames=args.layout_num_frames,
+        layout_num_frames=args.layout_num_frames,
+        appearance_num_frames=args.appearance_num_frames,
         videos_path=args.videos_path,
         train=False,
     )
@@ -54,9 +55,13 @@ def inference(args):
     logging.info(f"The model's configuration is:\n{model_config}")
     logging.info("==================================")
     model = models_factory[args.model_name](model_config).to(device)
-    model.load_state_dict(
-        torch.load(args.checkpoint_path, map_location=device), strict=False
-    )
+    try:
+        model.load_state_dict(torch.load(args.checkpoint_path, map_location=device))
+    except:
+        logging.info("Loading with strict=False, be careful, prone to bugs!")
+        model.load_state_dict(
+            torch.load(args.checkpoint_path, map_location=device), strict=False
+        )
     model.train(False)
     logging.info("Starting inference...")
     evaluator = evaluators_factory[args.dataset_name](num_samples, num_classes)

@@ -34,9 +34,9 @@ class StltModelConfig:
 class AppearanceModelConfig:
     def __init__(self, **kwargs):
         self.num_classes = kwargs.pop("num_classes", None)
-        self.num_frames = kwargs.pop("num_frames", None)
+        self.appearance_num_frames = kwargs.pop("appearance_num_frames", None)
         assert (
-            self.num_classes and self.num_frames
+            self.num_classes and self.appearance_num_frames
         ), "num_classes and num_frames must not be None!"
         self.resnet_model_path = kwargs.pop(
             "resnet_model_path", "models/r3d50_KMS_200ep.pth"
@@ -50,7 +50,7 @@ class AppearanceModelConfig:
     def __repr__(self):
         return (
             f"- Number of classes: {self.num_classes}\n"
-            f"- Number of frames: {self.num_frames}\n"
+            f"- Number of frames: {self.appearance_num_frames}\n"
             f"- Hidden size: {self.hidden_size}\n"
             f"- If Transformer: Number of attention heads: {self.num_attention_heads}\n"
             f"- If Transformer: Number of layers: {self.num_appearance_layers}\n"
@@ -59,4 +59,8 @@ class AppearanceModelConfig:
         )
 
 
-model_configs_factory = {"appearance": AppearanceModelConfig, "layout": StltModelConfig}
+model_configs_factory = {
+    "resnet3d": AppearanceModelConfig,
+    "resnet3d-transformer": AppearanceModelConfig,
+    "stlt": StltModelConfig,
+}

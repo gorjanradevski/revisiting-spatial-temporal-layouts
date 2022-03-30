@@ -47,10 +47,10 @@ class DataConfig:
         self.videoid2size_path = videoid2size_path
         self.videos_path = videos_path
         self.train = train
-        self.num_frames = kwargs.pop("num_frames", 16)
+        self.layout_num_frames = kwargs.pop("layout_num_frames", 16)
         self.max_num_objects = kwargs.pop("max_num_objects", 7)
         self.score_threshold = kwargs.pop("score_threshold", 0.5)
-        self.appearance_coord_nr_frames = kwargs.pop("appearance_coord_nr_frames", 32)
+        self.appearance_num_frames = kwargs.pop("appearance_num_frames", 32)
         self.spatial_size = kwargs.pop("spatial_size", 112)
         # Hacking :(
         self.category2id = (
@@ -141,9 +141,9 @@ class StltDataset(Dataset):
         boxes, categories, scores, frame_types = [], [], [], []
         num_frames = len(self.json_file[idx]["frames"])
         indices = (
-            sample_train_layout_indices(self.config.num_frames, num_frames)
+            sample_train_layout_indices(self.config.layout_num_frames, num_frames)
             if self.config.train
-            else get_test_layout_indices(self.config.num_frames, num_frames)
+            else get_test_layout_indices(self.config.layout_num_frames, num_frames)
         )
         for index in indices:
             frame = self.json_file[idx]["frames"][index]
@@ -230,7 +230,7 @@ class AppearanceDataset(Dataset):
             self.json_file = json.load(open(self.config.dataset_path))
         self.labels = json.load(open(self.config.labels_path))
         self.videoid2size = json.load(open(self.config.videoid2size_path))
-        self.resize = Resize(math.floor(self.spatial_size * 1.15))
+        self.resize = Resize(math.floor(self.config.spatial_size * 1.15))
         self.transforms = Compose(
             [
                 ToTensor(),
@@ -252,7 +252,7 @@ class AppearanceDataset(Dataset):
         video_id = self.json_file[idx]["id"]
         num_frames = len(self.videos[video_id])
         indices = sample_appearance_indices(
-            self.appearance_coord_nr_frames, num_frames, self.config.train
+            self.config.appearance_num_frames, num_frames, self.config.train
         )
         # Load all frames
         raw_video_frames = [
