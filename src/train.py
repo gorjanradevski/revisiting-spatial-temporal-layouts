@@ -7,12 +7,16 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from layout_models.datasets import StltCollater, StltDataConfig, StltDataset
-from layout_models.modelling import Stlt, StltModelConfig
+from modelling.datasets import DataConfig, datasets_factory, collaters_factory
+from modelling.models import models_factory
+from modelling.model_configs import model_configs_factory
 from utils.data_utils import get_device
 from utils.evaluation import evaluators_factory
 from utils.parser import Parser
-from utils.train_utils import add_weight_decay, get_linear_schedule_with_warmup
+from utils.train_inference_utils import (
+    add_weight_decay,
+    get_linear_schedule_with_warmup,
+)
 
 
 def train(args):
@@ -30,33 +34,35 @@ def train(args):
     # Prepare datasets
     logging.info("Preparing datasets...")
     # Prepare train dataset
-    train_data_config = StltDataConfig(
+    train_data_config = DataConfig(
         dataset_name=args.dataset_name,
         dataset_path=args.train_dataset_path,
         labels_path=args.labels_path,
         videoid2size_path=args.videoid2size_path,
         num_frames=args.layout_num_frames,
+        videos_path=args.videos_path,
         train=True,
     )
-    train_dataset = StltDataset(train_data_config)
+    train_dataset = datasets_factory[args.dataset_type](train_data_config)
     num_training_samples = len(train_dataset)
     # Prepare validation dataset
-    val_data_config = StltDataConfig(
+    val_data_config = DataConfig(
         dataset_name=args.dataset_name,
         dataset_path=args.val_dataset_path,
         labels_path=args.labels_path,
         videoid2size_path=args.videoid2size_path,
         num_frames=args.layout_num_frames,
+        videos_path=args.videos_path,
         train=False,
     )
-    val_dataset = StltDataset(val_data_config)
+    val_dataset = datasets_factory[args.dataset_type](val_data_config)
     num_validation_samples = len(val_dataset)
     num_classes = len(val_dataset.labels)
     logging.info(f"Training on {num_training_samples}")
     logging.info(f"Validating on {num_validation_samples}")
     # Prepare collaters
-    train_collater = StltCollater(train_data_config)
-    val_collater = StltCollater(val_data_config)
+    train_collater = collaters_factory[args.dataset_type](train_data_config)
+    val_collater = collaters_factory[args.dataset_type](val_data_config)
     # Prepare loaders
     train_loader = DataLoader(
         train_dataset,
@@ -75,8 +81,9 @@ def train(args):
     )
     logging.info("Preparing model...")
     # Prepare model
-    model_config = StltModelConfig(
+    model_config = model_configs_factory[args.model_name](
         num_classes=num_classes,
+        num_frames=args.appearance_num_frames,
         unique_categories=len(val_data_config.category2id),
         num_spatial_layers=args.num_spatial_layers,
         num_temporal_layers=args.num_temporal_layers,
@@ -86,8 +93,8 @@ def train(args):
     logging.info("==================================")
     logging.info(f"The model's configuration is:\n{model_config}")
     logging.info("==================================")
-    model = Stlt(model_config).to(device)
-    # Prepare loss and optimizer
+    model = models_factory[args.model_name](model_config).to(device)
+    # Prepare loss and optimize. Hack for the loss but easy :(
     criterion = (
         nn.CrossEntropy()
         if args.dataset_name == "something"
@@ -131,7 +138,6 @@ def train(args):
         evaluator.reset()
         with torch.no_grad():
             for batch in tqdm(val_loader):
-                # Move tensors to device
                 batch = {key: val.to(device) for key, val in batch.items()}
                 logits = model(batch)
                 evaluator.process(logits, batch["labels"])
@@ -149,7 +155,7 @@ def train(args):
 
 
 def main():
-    parser = Parser("Trains an STLT model.")
+    parser = Parser("Trains a model.")
     train(parser.parse_args())
 
 

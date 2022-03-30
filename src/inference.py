@@ -4,8 +4,9 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from layout_models.datasets import StltCollater, StltDataConfig, StltDataset
-from layout_models.modelling import Stlt, StltModelConfig
+from modelling.datasets import DataConfig, datasets_factory, collaters_factory
+from modelling.model_configs import model_configs_factory
+from modelling.models import models_factory
 from utils.data_utils import get_device
 from utils.evaluation import evaluators_factory
 from utils.parser import Parser
@@ -18,18 +19,19 @@ def inference(args):
     # Check for CUDA
     device = get_device(logger=logging.getLogger(__name__))
     logging.info("Preparing dataset...")
-    data_config = StltDataConfig(
+    data_config = DataConfig(
         dataset_name=args.dataset_name,
         dataset_path=args.test_dataset_path,
         labels_path=args.labels_path,
         videoid2size_path=args.videoid2size_path,
         num_frames=args.layout_num_frames,
+        videos_path=args.videos_path,
         train=False,
     )
-    test_dataset = StltDataset(data_config)
+    test_dataset = datasets_factory[args.dataset_type](data_config)
     num_samples = len(test_dataset)
     logging.info(f"Inference on {num_samples}")
-    collater = StltCollater(data_config)
+    collater = collaters_factory[args.dataset_type](data_config)
     # Prepare loader
     test_loader = DataLoader(
         test_dataset,
@@ -41,16 +43,17 @@ def inference(args):
     logging.info("Preparing model...")
     # Prepare model
     num_classes = len(test_dataset.labels)
-    model_config = StltModelConfig(
+    model_config = model_configs_factory[args.model_name](
         num_classes=num_classes,
         unique_categories=len(data_config.category2id),
         num_spatial_layers=args.num_spatial_layers,
         num_temporal_layers=args.num_temporal_layers,
+        appearance_num_frames=args.appearance_num_frames,
     )
     logging.info("==================================")
     logging.info(f"The model's configuration is:\n{model_config}")
     logging.info("==================================")
-    model = Stlt(model_config).to(device)
+    model = models_factory[args.model_name](model_config).to(device)
     model.load_state_dict(
         torch.load(args.checkpoint_path, map_location=device), strict=False
     )
@@ -58,7 +61,6 @@ def inference(args):
     logging.info("Starting inference...")
     evaluator = evaluators_factory[args.dataset_name](num_samples, num_classes)
     for batch in tqdm(test_loader):
-        # Move tensors to device
         batch = {key: val.to(device) for key, val in batch.items()}
         logits = model(batch)
         evaluator.process(logits, batch["labels"])
@@ -72,7 +74,7 @@ def inference(args):
 
 
 def main():
-    parser = Parser("Inference with STLT model.")
+    parser = Parser("Inference with a model.")
     inference(parser.parse_args())
 
 

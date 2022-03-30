@@ -1,23 +1,40 @@
+import io
 import json
+import math
 import re
 
+import h5py
+import numpy as np
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.transforms import (
+    ColorJitter,
+    Compose,
+    Normalize,
+    RandomCrop,
+    Resize,
+    ToTensor,
+)
+from torchvision.transforms import functional as TF
 from utils.data_utils import (
+    IdentityTransform,
     fix_box,
     get_test_layout_indices,
     pad_sequence,
+    sample_appearance_indices,
     sample_train_layout_indices,
 )
 
 
-class StltDataConfig:
+class DataConfig:
     def __init__(
         self,
         dataset_name: str,
         dataset_path: str,
         labels_path: str,
         videoid2size_path: str,
+        videos_path: str,
         train: bool,
         **kwargs,
     ):
@@ -28,10 +45,13 @@ class StltDataConfig:
         self.dataset_path = dataset_path
         self.labels_path = labels_path
         self.videoid2size_path = videoid2size_path
+        self.videos_path = videos_path
         self.train = train
         self.num_frames = kwargs.pop("num_frames", 16)
         self.max_num_objects = kwargs.pop("max_num_objects", 7)
         self.score_threshold = kwargs.pop("score_threshold", 0.5)
+        self.appearance_coord_nr_frames = kwargs.pop("appearance_coord_nr_frames", 32)
+        self.spatial_size = kwargs.pop("spatial_size", 112)
         # Hacking :(
         self.category2id = (
             {
@@ -96,7 +116,7 @@ class StltDataConfig:
 
 
 class StltDataset(Dataset):
-    def __init__(self, config: StltDataConfig):
+    def __init__(self, config: DataConfig):
         self.config = config
         self.json_file = json.load(open(self.config.dataset_path))
         self.labels = json.load(open(self.config.labels_path))
@@ -202,8 +222,84 @@ class StltDataset(Dataset):
         return actions
 
 
+class AppearanceDataset(Dataset):
+    def __init__(self, config: DataConfig, json_file=None):
+        self.config = config
+        self.json_file = json_file
+        if not self.json_file:
+            self.json_file = json.load(open(self.config.dataset_path))
+        self.labels = json.load(open(self.config.labels_path))
+        self.videoid2size = json.load(open(self.config.videoid2size_path))
+        self.resize = Resize(math.floor(self.spatial_size * 1.15))
+        self.transforms = Compose(
+            [
+                ToTensor(),
+                Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+            ]
+        )
+
+    def __len__(self):
+        return len(self.json_file)
+
+    def open_videos(self):
+        self.videos = h5py.File(
+            self.config.videos_path, "r", libver="latest", swmr=True
+        )
+
+    def __getitem__(self, idx: int):
+        if not hasattr(self, "videos"):
+            self.open_videos()
+        video_id = self.json_file[idx]["id"]
+        num_frames = len(self.videos[video_id])
+        indices = sample_appearance_indices(
+            self.appearance_coord_nr_frames, num_frames, self.config.train
+        )
+        # Load all frames
+        raw_video_frames = [
+            self.resize(
+                Image.open(io.BytesIO(np.array(self.videos[video_id][str(index)])))
+            )
+            for index in indices
+        ]
+        augment = IdentityTransform()
+        if self.config.train:
+            augment = ColorJitter.get_params(
+                brightness=(0.75, 1.25),
+                contrast=(0.75, 1.25),
+                saturation=(0.75, 1.25),
+                hue=(-0.1, 0.1),
+            )
+            top, left, height, width = RandomCrop.get_params(
+                raw_video_frames[0],
+                (self.config.spatial_size, self.config.spatial_size),
+            )
+
+        video_frames = []
+        for i in range(len(raw_video_frames)):
+            frame = raw_video_frames[i]
+            frame = augment(frame)
+            frame = (
+                TF.crop(frame, top, left, height, width)
+                if self.config.train
+                else TF.center_crop(frame, self.config.spatial_size)
+            )
+            frame = self.transforms(frame)
+            video_frames.append(frame)
+
+        video_frames = torch.stack(video_frames, dim=0).transpose(0, 1)
+        # Obtain video label
+        video_label = torch.tensor(
+            int(self.labels[re.sub("[\[\]]", "", self.json_file[idx]["template"])])
+        )
+
+        return video_frames, video_label
+
+
+datasets_factory = {"appearance": AppearanceDataset, "layout": StltDataset}
+
+
 class StltCollater:
-    def __init__(self, config: StltDataConfig):
+    def __init__(self, config: DataConfig):
         self.config = config
 
     def __call__(self, batch):
@@ -258,189 +354,17 @@ class StltCollater:
         return return_dict
 
 
-# DATASETS BELLOW ARE FOR TESTING PURPOSES ONLY
-
-
-class StltActionGenomeDataset(Dataset):
-    def __init__(self, config: StltDataConfig):
+class AppearanceCollater:
+    def __init__(self, config: DataConfig):
         self.config = config
-        self.json_file = json.load(open(self.config.dataset_path))
-        self.labels = json.load(open(self.config.labels_path))
-        self.videoid2size = json.load(open(self.config.videoid2size_path))
-        # Find max num objects
-        num_objects = []
-        for video in self.json_file:
-            for video_frame in video["frames"]:
-                cur_num_objects = 0
-                for frame_object in video_frame["frame_objects"]:
-                    if frame_object["score"] >= self.config.score_threshold:
-                        cur_num_objects += 1
-                num_objects.append(cur_num_objects)
-        self.config.max_num_objects = max(num_objects)
 
-    def __len__(self):
-        return len(self.json_file)
+    def __call__(self, batch):
+        videos, labels = zip(*batch)
+        return_dict = {}
+        return_dict["videos"] = torch.stack(videos, dim=0)
+        return_dict["labels"] = torch.stack([*labels], dim=0)
 
-    def __getitem__(self, idx: int):
-        video_name = self.json_file[idx]["id"]
-        video_size = torch.tensor(self.videoid2size[video_name]).repeat(2)
-        # Start loading
-        boxes = []
-        categories = []
-        scores = []
-        frame_types = []
-        num_frames = len(self.json_file[idx]["frames"])
-        indices = (
-            sample_train_layout_indices(self.config.num_frames, num_frames)
-            if self.config.train
-            else get_test_layout_indices(self.config.num_frames, num_frames)
-        )
-        for index in indices:
-            frame = self.json_file[idx]["frames"][index]
-            # Prepare frame types
-            frame_types.append(self.config.frame2type["regular"])
-            # Prepare boxes and categories
-            frame_boxes = [torch.tensor([0.0, 0.0, 1.0, 1.0])]
-            frame_categories = [self.config.category2id["cls"]]
-            frame_scores = [1.0]
-            for element in frame["frame_objects"]:
-                if element["score"] < self.config.score_threshold:
-                    continue
-                # element_category = "person" if element["category"] == "person" else "object"
-                element_category = element["category"]
-                # element_category = element["category"]
-                element_score = element["score"]
-                box = [element["x1"], element["y1"], element["x2"], element["y2"]]
-                box = fix_box(
-                    box, (video_size[1].item(), video_size[0].item())
-                )  # Height, Width
-                # Prepare box
-                box = torch.tensor(box) / video_size
-                frame_boxes.append(box)
-                # Prepare category
-                frame_categories.append(self.config.category2id[element_category])
-                # Prepare scores
-                frame_scores.append(element_score)
-            assert len(frame_boxes) == len(frame_categories)
-            while len(frame_boxes) != self.config.max_num_objects + 1:
-                frame_boxes.append(torch.full((4,), 0.0))
-                frame_categories.append(0)
-                frame_scores.append(0.0)
-            categories.append(torch.tensor(frame_categories))
-            scores.append(torch.tensor(frame_scores))
-            boxes.append(torch.stack(frame_boxes, dim=0))
-
-        # Prepare extract element
-        extract_box = torch.full((self.config.max_num_objects + 1, 4), 0.0)
-        extract_box[0] = torch.tensor([0.0, 0.0, 1.0, 1.0])
-        boxes.append(extract_box)
-        # Categories
-        extract_category = torch.full((self.config.max_num_objects + 1,), 0)
-        extract_category[0] = self.config.category2id["cls"]
-        categories.append(extract_category)
-        # Scores
-        extract_score = torch.full((self.config.max_num_objects + 1,), 0.0)
-        extract_score[0] = 1.0
-        scores.append(extract_score)
-        # Length
-        length = torch.tensor(len(categories))
-        # Frame types
-        frame_types.append(self.config.frame2type["extract"])
-        # Obtain video label
-        action_list = [int(action[1:]) for action in self.json_file[idx]["actions"]]
-        actions = torch.zeros(len(self.labels), dtype=torch.float)
-        actions[action_list] = 1.0
-
-        return (
-            video_name,
-            torch.stack(categories, dim=0),
-            torch.stack(boxes, dim=0),
-            torch.stack(scores, dim=0),
-            torch.tensor(frame_types),
-            length,
-            actions,
-        )
+        return return_dict
 
 
-class StltSmthDataset(Dataset):
-    def __init__(self, config: StltDataConfig):
-        # Load dataset JSON file
-        self.config = config
-        self.json_file = json.load(open(self.config.dataset_path))
-        self.labels = json.load(open(self.config.labels_path))
-        self.videoid2size = json.load(open(self.config.videoid2size_path))
-
-    def __len__(self):
-        return len(self.json_file)
-
-    def __getitem__(self, idx: int):
-        video_id = self.json_file[idx]["id"]
-        video_size = torch.tensor(self.videoid2size[video_id]).repeat(2)
-        # Start loading
-        num_frames = len(self.json_file[idx]["frames"])
-        indices = (
-            sample_train_layout_indices(self.config.num_frames, num_frames)
-            if self.config.train
-            else get_test_layout_indices(self.config.num_frames, num_frames)
-        )
-        boxes = []
-        categories = []
-        frame_types = []
-        for index in indices:
-            frame = self.json_file[idx]["frames"][index]
-            frame_types.append(
-                self.config.frame2type["empty"]
-                if len(frame["frame_objects"]) == 0
-                else self.config.frame2type["regular"]
-            )
-            frame_boxes = [torch.tensor([0.0, 0.0, 1.0, 1.0])]
-            frame_categories = [self.config.category2id["cls"]]
-            for element in frame["frame_objects"]:
-                # Prepare box
-                box = [element["x1"], element["y1"], element["x2"], element["y2"]]
-                # Fix box
-                box = fix_box(
-                    box, (video_size[1].item(), video_size[0].item())
-                )  # Height, Width
-                # Transform box
-                box = torch.tensor(box) / video_size
-                frame_boxes.append(box)
-                # Prepare category
-                category_name = "hand" if "hand" in element["category"] else "object"
-                frame_categories.append(self.config.category2id[category_name])
-            assert len(frame_boxes) == len(frame_categories)
-            while len(frame_boxes) != self.config.max_num_objects + 1:
-                frame_boxes.append(torch.full((4,), 0.0))
-                frame_categories.append(0)
-            categories.append(torch.tensor(frame_categories))
-            boxes.append(torch.stack(frame_boxes, dim=0))
-        # Appending extract element
-        # Boxes
-        extract_box = torch.full((self.config.max_num_objects + 1, 4), 0.0)
-        extract_box[0] = torch.tensor([0.0, 0.0, 1.0, 1.0])
-        boxes.append(extract_box)
-        boxes = torch.stack(boxes, dim=0)
-        # Categories
-        extract_category = torch.full((self.config.max_num_objects + 1,), 0)
-        extract_category[0] = self.config.category2id["cls"]
-        categories.append(extract_category)
-        categories = torch.stack(categories, dim=0)
-        # Length
-        length = torch.tensor(len(categories))
-        # Frame types
-        frame_types.append(self.config.frame2type["extract"])
-        frame_types = torch.tensor(frame_types)
-        # Obtain video label
-        video_label = torch.tensor(
-            int(self.labels[re.sub("[\[\]]", "", self.json_file[idx]["template"])])
-        )
-
-        return (
-            video_id,
-            categories,
-            boxes,
-            [],  # Scores
-            frame_types,
-            length,
-            video_label,
-        )
+collaters_factory = {"appearance": AppearanceCollater, "layout": StltCollater}

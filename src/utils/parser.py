@@ -11,6 +11,12 @@ class Parser:
             help="The name of the dataset, either something or action_genome",
         )
         self.parser.add_argument(
+            "--dataset_type",
+            type=str,
+            default=None,
+            help="The type of the dataset - layout, appearance or multimodal.",
+        )
+        self.parser.add_argument(
             "--log_filepath",
             type=str,
             default=None,
@@ -47,10 +53,22 @@ class Parser:
             help="Path to the videoid2size json file.",
         )
         self.parser.add_argument(
+            "--videos_path",
+            type=str,
+            default=None,
+            help="Path to the videos saved as HDF5.",
+        )
+        self.parser.add_argument(
             "--layout_num_frames",
             type=int,
             default=16,
             help="The number of layout frames to sample per video.",
+        )
+        self.parser.add_argument(
+            "--appearance_num_frames",
+            type=int,
+            default=32,
+            help="The number of appearance frames to sample per video.",
         )
         self.parser.add_argument(
             "--score_threshold",
@@ -111,6 +129,12 @@ class Parser:
             type=int,
             default=2,
             help="The number warmup epochs.",
+        )
+        self.parser.add_argument(
+            "--model_name",
+            type=str,
+            default=None,
+            help="The name of the model.",
         )
         self.parser.add_argument(
             "--save_model_path",

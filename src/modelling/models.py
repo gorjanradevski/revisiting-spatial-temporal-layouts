@@ -5,35 +5,8 @@ from torch import nn
 from torch.nn import functional as F
 from utils.model_utils import generate_square_subsequent_mask
 
-
-class StltModelConfig:
-    def __init__(self, unique_categories: int, num_classes: int, **kwargs):
-        self.num_classes = num_classes
-        self.unique_categories = unique_categories
-        self.hidden_size = kwargs.pop("hidden_size", 768)
-        self.hidden_dropout_prob = kwargs.pop("hidden_dropout_prob", 0.1)
-        self.layer_norm_eps = kwargs.pop("layer_norm_eps", 1e-12)
-        self.num_attention_heads = kwargs.pop("num_attention_heads", 12)
-        self.num_spatial_layers = kwargs.pop("num_spatial_layers", 4)
-        self.num_temporal_layers = kwargs.pop("num_temporal_layers", 8)
-        self.max_num_frames = kwargs.pop("max_num_frames", 256)
-        self.load_backbone_path = kwargs.pop("load_backbone_path", None)
-        self.freeze_backbone = kwargs.pop("freeze_backbone", False)
-
-    def __repr__(self):
-        return (
-            f"- Unique categories: {self.unique_categories}\n"
-            f"- Number of classes: {self.num_classes}\n"
-            f"- Hidden size: {self.hidden_size}\n"
-            f"- Hidden dropout probability: {self.hidden_dropout_prob}\n"
-            f"- Layer normalization epsilon: {self.layer_norm_eps}\n"
-            f"- Number of attention heads: {self.num_attention_heads}\n"
-            f"- Number of spatial layers: {self.num_spatial_layers}\n"
-            f"- Number of temporal layers: {self.num_temporal_layers}\n"
-            f"- Max number of frames accepted: {self.max_num_frames}\n"
-            f"- The backbone path is: {self.load_backbone_path}\n"
-            f"- Freezing the backbone: {self.freeze_backbone}"
-        )
+from modelling.model_configs import AppearanceModelConfig, StltModelConfig
+from modelling.resnets3d import generate_model
 
 
 class CategoryBoxEmbeddings(nn.Module):
@@ -213,3 +186,96 @@ class Stlt(nn.Module):
         stlt_output = stlt_output[batch["lengths"] - 1, batches, :]
 
         return self.prediction_head(stlt_output)
+
+
+class Resnet3D(nn.Module):
+    def __init__(self, config: AppearanceModelConfig):
+        super(Resnet3D, self).__init__()
+        resnet = generate_model(model_depth=50, n_classes=1139)
+        resnet.load_state_dict(
+            torch.load(config.resnet_model_path, map_location="cpu")["state_dict"]
+        )
+        self.resnet = torch.nn.Sequential(*(list(resnet.children())[:-2]))
+        for module in self.resnet.modules():
+            if isinstance(module, nn.BatchNorm3d):
+                module.weight.requires_grad = False
+                module.bias.requires_grad = False
+        if config.num_classes > 0:
+            self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
+            self.classifier = nn.Linear(2048, config.num_classes)
+
+    def train(self, mode: bool):
+        super(Resnet3D, self).train(mode)
+        for module in self.resnet.modules():
+            if isinstance(module, nn.BatchNorm3d):
+                module.train(False)
+
+    def forward_features(self, videos: torch.Tensor):
+        return self.resnet(videos)
+
+    def forward(self, videos: torch.Tensor):
+        features = self.forward_features(videos)
+        features = self.avgpool(features).flatten(1)
+        logits = self.classifier(features)
+
+        return logits
+
+
+class TransformerResnet(nn.Module):
+    def __init__(self, config: AppearanceModelConfig):
+        super(TransformerResnet, self).__init__()
+        self.resnet = Resnet3D(config)
+        self.projector = nn.Conv3d(
+            in_channels=2048, out_channels=config.hidden_size, kernel_size=(1, 1, 1)
+        )
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=config.hidden_size,
+            nhead=config.num_attention_heads,
+            dim_feedforward=config.hidden_size * 4,
+        )
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer=encoder_layer, num_layers=config.num_appearance_layers
+        )
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
+        self.pos_embed = nn.Parameter(
+            torch.zeros(config.num_frames + 1, 1, config.hidden_size)
+        )
+        self.classifier = nn.Linear(config.hidden_size, config.num_classes)
+
+    def forward_features(self, videos: torch.Tensor):
+        # We need the batch size for the CLS token
+        B = videos.shape[0]
+        features = self.resnet.forward_features(videos)
+        # [Batch size, Hidden size, Temporal., Spatial., Spatial.]
+        features = self.projector(features)
+        # [Batch size, Hidden size, Seq. len]
+        features = features.flatten(2)
+        # [Seq. len, Batch size, Hidden size]
+        features = features.permute(2, 0, 1)
+        cls_tokens = self.cls_token.expand(
+            -1, B, -1
+        )  # stole cls_tokens impl from Ross Wightman thanks
+        features = torch.cat((cls_tokens, features), dim=0)
+        features = features + self.pos_embed
+        # [Seq. len, Batch size, Hidden size]
+        features = self.transformer(src=features)
+
+        return features
+
+    def forward(self, videos: torch.Tensor):
+        # [Seq. len, Batch size, Hidden size]
+        features = self.forward_features(videos)
+        # [Batch size, Hidden size]
+        cls_state = features[0, :, :]
+
+        return self.classifier(cls_state)
+
+    def no_weight_decay(self):
+        return {"pos_embed", "cls_token"}
+
+
+models_factory = {
+    "resnet3d": Resnet3D,
+    "resnet3d-transformer": TransformerResnet,
+    "stlt": Stlt,
+}

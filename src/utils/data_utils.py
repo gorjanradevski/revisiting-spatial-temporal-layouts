@@ -1,4 +1,3 @@
-import logging
 from typing import List, Tuple
 
 import ffmpeg
@@ -27,6 +26,33 @@ def load_video(in_filepath: str):
     video = np.frombuffer(out, np.uint8).reshape([-1, height, width, 3])
 
     return video
+
+
+def sample_train_layout_indices(coord_nr_frames: int, nr_video_frames: int):
+    # https://github.com/joaanna/something_else/blob/master/code/data_utils/data_loader_frames.py#L135
+    average_duration = nr_video_frames * 1.0 / coord_nr_frames
+    if average_duration > 0:
+        offsets = np.multiply(
+            list(range(coord_nr_frames)), average_duration
+        ) + np.random.uniform(0, average_duration, size=coord_nr_frames)
+        offsets = np.floor(offsets)
+    elif nr_video_frames > coord_nr_frames:
+        offsets = np.sort(np.random.randint(nr_video_frames, size=coord_nr_frames))
+    else:
+        offsets = np.arange(nr_video_frames)
+    offsets = list(map(int, list(offsets)))
+    return offsets
+
+
+def get_test_layout_indices(coord_nr_frames: int, nr_video_frames: int):
+    # https://github.com/joaanna/something_else/blob/master/code/data_utils/data_loader_frames.py#L148
+    if nr_video_frames > coord_nr_frames:
+        tick = nr_video_frames * 1.0 / coord_nr_frames
+        offsets = np.array([int(tick / 2.0 + tick * x) for x in range(coord_nr_frames)])
+    else:
+        offsets = np.arange(nr_video_frames)
+    offsets = list(map(int, list(offsets)))
+    return offsets
 
 
 def sample_appearance_indices(
@@ -63,33 +89,6 @@ def sample_appearance_indices(
     return frame_list
 
 
-def sample_train_layout_indices(coord_nr_frames: int, nr_video_frames: int):
-    # https://github.com/joaanna/something_else/blob/master/code/data_utils/data_loader_frames.py#L135
-    average_duration = nr_video_frames * 1.0 / coord_nr_frames
-    if average_duration > 0:
-        offsets = np.multiply(
-            list(range(coord_nr_frames)), average_duration
-        ) + np.random.uniform(0, average_duration, size=coord_nr_frames)
-        offsets = np.floor(offsets)
-    elif nr_video_frames > coord_nr_frames:
-        offsets = np.sort(np.random.randint(nr_video_frames, size=coord_nr_frames))
-    else:
-        offsets = np.arange(nr_video_frames)
-    offsets = list(map(int, list(offsets)))
-    return offsets
-
-
-def get_test_layout_indices(coord_nr_frames: int, nr_video_frames: int):
-    # https://github.com/joaanna/something_else/blob/master/code/data_utils/data_loader_frames.py#L148
-    if nr_video_frames > coord_nr_frames:
-        tick = nr_video_frames * 1.0 / coord_nr_frames
-        offsets = np.array([int(tick / 2.0 + tick * x) for x in range(coord_nr_frames)])
-    else:
-        offsets = np.arange(nr_video_frames)
-    offsets = list(map(int, list(offsets)))
-    return offsets
-
-
 def pad_sequence(sequences: List[torch.Tensor], pad_tensor: torch.Tensor):
     num_trailing_dims = len(sequences[0].size()[1:])
     max_len = max([s.size(0) for s in sequences])
@@ -100,23 +99,6 @@ def pad_sequence(sequences: List[torch.Tensor], pad_tensor: torch.Tensor):
         out_tensor[i, :length, ...] = tensor
 
     return out_tensor
-
-
-def valid_box(box: List[int], frame_size: int):
-    if box[0] >= frame_size and box[2] >= frame_size:
-        return False
-    if box[0] <= 0 and box[2] <= 0:
-        return False
-    if box[1] >= frame_size and box[3] >= frame_size:
-        return False
-    if box[1] <= 0 and box[3] <= 0:
-        return False
-    return True
-
-
-def clamp_box(box: List[int], frame_size: int):
-    out_box = [max(0, min(e, frame_size)) for e in box]
-    return out_box
 
 
 class IdentityTransform:
@@ -172,6 +154,23 @@ class RandomCropBoxes:
         return out_box
 
 
+def valid_box(box: List[int], frame_size: int):
+    if box[0] >= frame_size and box[2] >= frame_size:
+        return False
+    if box[0] <= 0 and box[2] <= 0:
+        return False
+    if box[1] >= frame_size and box[3] >= frame_size:
+        return False
+    if box[1] <= 0 and box[3] <= 0:
+        return False
+    return True
+
+
+def clamp_box(box: List[int], frame_size: int):
+    out_box = [max(0, min(e, frame_size)) for e in box]
+    return out_box
+
+
 def fix_box(box: List[int], video_size: Tuple[int, int]):
     # Cast box elements to integers
     box = [max(0, int(b)) for b in box]
@@ -199,16 +198,3 @@ def fix_box(box: List[int], video_size: Tuple[int, int]):
     if box[1] == box[3]:
         box[1] -= 1
     return box
-
-
-def get_device(logger: logging.Logger):
-    device = torch.device("cpu")
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        for i in range(torch.cuda.device_count()):
-            logger.warning(f"{torch.cuda.get_device_properties(f'cuda:{i}')}")
-            logger.warning(
-                f"Current occupied memory: {torch.cuda.memory_allocated(i) * 1e-9} GB"
-            )
-    logging.warning(f"Using device {device}!!!")
-    return device
