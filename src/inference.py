@@ -57,8 +57,11 @@ def inference(args):
     model = models_factory[args.model_name](model_config).to(device)
     try:
         model.load_state_dict(torch.load(args.checkpoint_path, map_location=device))
-    except:
-        logging.info("Loading with strict=False, be careful, prone to bugs!")
+    except RuntimeError as e:
+        logging.warning(
+            "Default loading failed, loading with strict=False. See exception below."
+        )
+        logging.warning(e)
         model.load_state_dict(
             torch.load(args.checkpoint_path, map_location=device), strict=False
         )
@@ -66,7 +69,10 @@ def inference(args):
     logging.info("Starting inference...")
     evaluator = evaluators_factory[args.dataset_name](num_samples, num_classes)
     for batch in tqdm(test_loader):
-        batch = {key: val.to(device) for key, val in batch.items()}
+        batch = {
+            key: val.to(device) if isinstance(val, torch.Tensor) else val
+            for key, val in batch.items()
+        }
         logits = model(batch)
         evaluator.process(logits, batch["labels"])
 

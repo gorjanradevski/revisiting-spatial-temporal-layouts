@@ -200,15 +200,15 @@ class StltDataset(Dataset):
         # Get action(s)
         actions = self.get_actions(self.json_file[idx])
 
-        return (
-            video_id,
-            torch.stack(categories, dim=0),
-            torch.stack(boxes, dim=0),
-            torch.stack(scores, dim=0),
-            torch.tensor(frame_types),
-            length,
-            actions,
-        )
+        return {
+            "video_id": video_id,
+            "categories": torch.stack(categories, dim=0),
+            "boxes": torch.stack(boxes, dim=0),
+            "scores": torch.stack(scores, dim=0),
+            "frame_types": torch.tensor(frame_types),
+            "lengths": length,
+            "labels": actions,
+        }
 
     def get_actions(self, sample):
         if self.config.dataset_name == "something":
@@ -292,10 +292,32 @@ class AppearanceDataset(Dataset):
             int(self.labels[re.sub("[\[\]]", "", self.json_file[idx]["template"])])
         )
 
-        return video_frames, video_label
+        return {"video_id": video_id, "frames": video_frames, "labels": video_label}
 
 
-datasets_factory = {"appearance": AppearanceDataset, "layout": StltDataset}
+class MultimodalDataset(Dataset):
+    def __init__(self, config: DataConfig):
+        self.layout_dataset = StltDataset(config)
+        self.appearance_dataset = AppearanceDataset(
+            config, self.layout_dataset.json_file
+        )
+
+    def __len__(self):
+        return self.layout_dataset.__len__()
+
+    def __getitem__(self, idx: int):
+        layout_dict = self.layout_dataset[idx]
+        appearance_dict = self.appearance_dataset[idx]
+
+        # layout_dict and appearance_dict have overlapping video_id and actions
+        return {**layout_dict, **appearance_dict}
+
+
+datasets_factory = {
+    "appearance": AppearanceDataset,
+    "layout": StltDataset,
+    "multimodal": MultimodalDataset,
+}
 
 
 class StltCollater:
@@ -303,55 +325,51 @@ class StltCollater:
         self.config = config
 
     def __call__(self, batch):
-        (
-            _,
-            categories,
-            boxes,
-            scores,
-            frame_types,
-            lengths,
-            labels,
-        ) = zip(*batch)
+        batch = {key: [e[key] for e in batch] for key in batch[0].keys()}
         # https://github.com/pytorch/pytorch/issues/24816
-        return_dict = {}
         # Pad categories
         pad_categories_tensor = torch.full((self.config.max_num_objects + 1,), 0)
         pad_categories_tensor[0] = self.config.category2id["cls"]
-        return_dict["categories"] = pad_sequence(
-            categories, pad_tensor=pad_categories_tensor
+        batch["categories"] = pad_sequence(
+            batch["categories"], pad_tensor=pad_categories_tensor
         )
-        # Hack for padding and using scores only if the dataset is Action Genome
+        # Hack for padding and using scores only if the dataset is Action Genome :(
         if self.config.dataset_name == "action_genome":
             pad_scores_tensor = torch.full((self.config.max_num_objects + 1,), 0.0)
             pad_scores_tensor[0] = 1.0
-            return_dict["scores"] = pad_sequence(scores, pad_tensor=pad_scores_tensor)
+            batch["scores"] = pad_sequence(
+                batch["scores"], pad_tensor=pad_scores_tensor
+            )
+        else:
+            del batch["scores"]
         # Pad boxes
         pad_boxes_tensor = torch.full((self.config.max_num_objects + 1, 4), 0.0)
         pad_boxes_tensor[0] = torch.tensor([0.0, 0.0, 1.0, 1.0])
-        return_dict["boxes"] = pad_sequence(boxes, pad_tensor=pad_boxes_tensor)
+        batch["boxes"] = pad_sequence(batch["boxes"], pad_tensor=pad_boxes_tensor)
         # Pad frame types
-        return_dict["frame_types"] = pad_sequence(
-            frame_types, pad_tensor=torch.tensor([self.config.frame2type["pad"]])
+        batch["frame_types"] = pad_sequence(
+            batch["frame_types"],
+            pad_tensor=torch.tensor([self.config.frame2type["pad"]]),
         )
-        # Prepare lengths and labels
-        return_dict["lengths"] = torch.stack([*lengths], dim=0)
-        return_dict["labels"] = torch.stack([*labels], dim=0)
+        # Prepare length and labels
+        batch["lengths"] = torch.stack(batch["lengths"], dim=0)
+        batch["labels"] = torch.stack(batch["labels"], dim=0)
         # Generate mask for the padding of the boxes
         src_key_padding_mask_boxes = torch.zeros_like(
-            return_dict["categories"], dtype=torch.bool
+            batch["categories"], dtype=torch.bool
         )
-        src_key_padding_mask_boxes[torch.where(return_dict["categories"] == 0)] = True
-        return_dict["src_key_padding_mask_boxes"] = src_key_padding_mask_boxes
+        src_key_padding_mask_boxes[torch.where(batch["categories"] == 0)] = True
+        batch["src_key_padding_mask_boxes"] = src_key_padding_mask_boxes
         # Generate mask for padding of the frames
         src_key_padding_mask_frames = torch.zeros(
-            return_dict["frame_types"].size(), dtype=torch.bool
+            batch["frame_types"].size(), dtype=torch.bool
         )
         src_key_padding_mask_frames[
-            torch.where(return_dict["frame_types"] == self.config.frame2type["pad"])
+            torch.where(batch["frame_types"] == self.config.frame2type["pad"])
         ] = True
-        return_dict["src_key_padding_mask_frames"] = src_key_padding_mask_frames
+        batch["src_key_padding_mask_frames"] = src_key_padding_mask_frames
 
-        return return_dict
+        return batch
 
 
 class AppearanceCollater:
@@ -359,12 +377,28 @@ class AppearanceCollater:
         self.config = config
 
     def __call__(self, batch):
-        videos, labels = zip(*batch)
-        return_dict = {}
-        return_dict["videos"] = torch.stack(videos, dim=0)
-        return_dict["labels"] = torch.stack([*labels], dim=0)
+        batch = {key: [e[key] for e in batch] for key in batch[0].keys()}
+        batch["videos"] = torch.stack(batch["videos"], dim=0)
+        batch["labels"] = torch.stack(batch["labels"], dim=0)
 
-        return return_dict
+        return batch
 
 
-collaters_factory = {"appearance": AppearanceCollater, "layout": StltCollater}
+class MultiModalCollater:
+    def __init__(self, config: DataConfig):
+        self.config = config
+        self.layout_collater = StltCollater(config)
+        self.appearance_collater = AppearanceCollater(config)
+
+    def __call__(self, batch):
+        layout_batch = self.layout_collater(batch)
+        appearance_batch = self.appearance_collater(batch)
+
+        return {**layout_batch, **appearance_batch}
+
+
+collaters_factory = {
+    "appearance": AppearanceCollater,
+    "layout": StltCollater,
+    "multimodal": MultiModalCollater,
+}

@@ -82,13 +82,13 @@ class FramesEmbeddings(nn.Module):
         super(FramesEmbeddings, self).__init__()
         self.layout_embedding = SpatialTransformer(config)
         self.position_embeddings = nn.Embedding(
-            config.max_num_frames, config.hidden_size
+            config.layout_num_frames, config.hidden_size
         )
         self.frame_type_embedding = nn.Embedding(5, config.hidden_size, padding_idx=0)
         self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.register_buffer(
-            "position_ids", torch.arange(config.max_num_frames).expand((1, -1))
+            "position_ids", torch.arange(config.layout_num_frames).expand((1, -1))
         )
 
     def forward(self, batch: Dict[str, torch.Tensor]):
@@ -163,22 +163,22 @@ class Stlt(nn.Module):
         super(Stlt, self).__init__()
         self.config = config
         if config.load_backbone_path is not None:
-            self.backbone = StltBackbone.from_pretrained(config)
+            self.stlt_backbone = StltBackbone.from_pretrained(config)
             if config.freeze_backbone:
-                for param in self.backbone.parameters():
+                for param in self.stlt_backbone.parameters():
                     param.requires_grad = False
         else:
-            self.backbone = StltBackbone(config)
+            self.stlt_backbone = StltBackbone(config)
         self.prediction_head = ClassificationHead(config)
 
     def train(self, mode: bool):
         super(Stlt, self).train(mode)
         if self.config.load_backbone_path and self.config.freeze_backbone:
-            self.backbone.train(False)
+            self.stlt_backbone.train(False)
 
     def forward(self, batch: Dict[str, torch.Tensor]):
         # [Num. frames, Batch size, Hidden size]
-        stlt_output = self.backbone(batch)
+        stlt_output = self.stlt_backbone(batch)
         # [Batch size, Hidden size]
         batches = torch.arange(batch["categories"].size()[0]).to(
             batch["categories"].device

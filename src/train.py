@@ -122,7 +122,10 @@ def train(args):
                 # Remove past gradients
                 optimizer.zero_grad()
                 # Move tensors to device
-                batch = {key: val.to(device) for key, val in batch.items()}
+                batch = {
+                    key: val.to(device) if isinstance(val, torch.Tensor) else val
+                    for key, val in batch.items()
+                }
                 # Obtain outputs
                 logits = model(batch)
                 # Measure loss and update weights
@@ -140,7 +143,10 @@ def train(args):
         evaluator.reset()
         with torch.no_grad():
             for batch in tqdm(val_loader):
-                batch = {key: val.to(device) for key, val in batch.items()}
+                batch = {
+                    key: val.to(device) if isinstance(val, torch.Tensor) else val
+                    for key, val in batch.items()
+                }
                 logits = model(batch)
                 evaluator.process(logits, batch["labels"])
         # Saving logic
