@@ -91,6 +91,7 @@ def train(args):
         num_temporal_layers=args.num_temporal_layers,
         load_backbone_path=args.load_backbone_path,
         freeze_backbone=args.freeze_backbone,
+        resnet_model_path=args.resnet_model_path,
     )
     logging.info("==================================")
     logging.info(f"The model's configuration is:\n{model_config}")

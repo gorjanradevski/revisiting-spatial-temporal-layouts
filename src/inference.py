@@ -50,6 +50,7 @@ def inference(args):
         num_spatial_layers=args.num_spatial_layers,
         num_temporal_layers=args.num_temporal_layers,
         appearance_num_frames=args.appearance_num_frames,
+        resnet_model_path=args.resnet_model_path,
     )
     logging.info("==================================")
     logging.info(f"The model's configuration is:\n{model_config}")

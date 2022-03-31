@@ -41,10 +41,9 @@ class AppearanceModelConfig(GeneralConfig):
         super(AppearanceModelConfig, self).__init__(**kwargs)
         self.appearance_num_frames = kwargs.pop("appearance_num_frames", None)
         assert self.appearance_num_frames, "appearance_num_frames must not be None!"
-        self.resnet_model_path = kwargs.pop(
-            "resnet_model_path", "models/r3d50_KMS_200ep.pth"
-        )
-        self.num_appearance_layers = kwargs.pop("num_appearance_layers", 2)
+        self.resnet_model_path = kwargs.pop("resnet_model_path", None)
+        assert self.resnet_model_path, "resnet_model_path must be provided"
+        self.num_appearance_layers = kwargs.pop("num_appearance_layers", 4)
 
     def __repr__(self):
         return (
@@ -58,18 +57,35 @@ class AppearanceModelConfig(GeneralConfig):
         )
 
 
-class MultimodalConfig(GeneralConfig):
+class MultimodalModelConfig(GeneralConfig):
     def __init__(self, **kwargs):
-        super(MultimodalConfig, self).__init__(**kwargs)
-        self.stlt_config = StltModelConfig(kwargs)
-        self.appearance_config = AppearanceModelConfig(kwargs)
+        super(MultimodalModelConfig, self).__init__(**kwargs)
+        # Not perfect way of creating the configs...
+        self.stlt_config = StltModelConfig(**kwargs)
+        self.appearance_config = AppearanceModelConfig(**kwargs)
         self.num_fusion_layers = kwargs.pop("num_fusion_layers", 4)
+
+    def __repr__(self):
+        stlt_repr = "*** Layout branch config: \n" + self.stlt_config.__repr__() + "\n"
+        appearance_repr = (
+            "*** Appearance branch config: \n"
+            + self.appearance_config.__repr__()
+            + "\n"
+        )
+
+        return (
+            stlt_repr
+            + appearance_repr
+            + "*** Fusion module config: \n"
+            + f"- Num fusion layers: {self.num_fusion_layers}"
+        )
 
 
 model_configs_factory = {
     "stlt": StltModelConfig,
     "resnet3d": AppearanceModelConfig,
     "resnet3d-transformer": AppearanceModelConfig,
-    "caf": MultimodalConfig,
-    "cacnf": MultimodalConfig,
+    "lcf": MultimodalModelConfig,
+    "caf": MultimodalModelConfig,
+    "cacnf": MultimodalModelConfig,
 }

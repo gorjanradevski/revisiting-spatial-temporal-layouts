@@ -5,7 +5,11 @@ from torch import nn
 from torch.nn import functional as F
 from utils.model_utils import generate_square_subsequent_mask
 
-from modelling.model_configs import AppearanceModelConfig, StltModelConfig
+from modelling.model_configs import (
+    AppearanceModelConfig,
+    MultimodalModelConfig,
+    StltModelConfig,
+)
 from modelling.resnets3d import generate_model
 
 
@@ -118,6 +122,7 @@ class StltBackbone(nn.Module):
             dropout=config.hidden_dropout_prob,
             activation="gelu",
         )
+        # Temporal Transformer
         self.transformer = nn.TransformerEncoder(
             encoder_layer=encoder_layer, num_layers=config.num_temporal_layers
         )
@@ -211,7 +216,7 @@ class Resnet3D(nn.Module):
                 module.train(False)
 
     def forward_features(self, batch):
-        return self.resnet(batch["videos"])
+        return self.resnet(batch["video_frames"])
 
     def forward(self, batch):
         features = self.forward_features(batch)
@@ -238,14 +243,14 @@ class TransformerResnet(nn.Module):
         )
         self.cls_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
         self.pos_embed = nn.Parameter(
-            torch.zeros(config.num_frames + 1, 1, config.hidden_size)
+            torch.zeros(config.appearance_num_frames + 1, 1, config.hidden_size)
         )
         self.classifier = nn.Linear(config.hidden_size, config.num_classes)
 
     def forward_features(self, batch):
         # We need the batch size for the CLS token
-        B = batch["videos"].shape[0]
-        features = self.resnet.forward_features(batch["videos"])
+        B = batch["video_frames"].shape[0]
+        features = self.resnet.forward_features(batch)
         # [Batch size, Hidden size, Temporal., Spatial., Spatial.]
         features = self.projector(features)
         # [Batch size, Hidden size, Seq. len]
@@ -274,8 +279,45 @@ class TransformerResnet(nn.Module):
         return {"pos_embed", "cls_token"}
 
 
+class FusionHead(nn.Module):
+    def __init__(self, config: MultimodalModelConfig):
+        super(FusionHead, self).__init__()
+        self.fc1 = nn.Linear(config.hidden_size * 2, config.hidden_size)
+        self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.fc2 = nn.Linear(config.hidden_size, config.num_classes)
+
+    def forward(self, hidden_state: torch.Tensor):
+        return self.fc2(self.layer_norm(F.gelu(self.fc1(hidden_state))))
+
+
+class LateConcatenationFusion(nn.Module):
+    def __init__(self, config: MultimodalModelConfig):
+        super(LateConcatenationFusion, self).__init__()
+        self.layout_branch = StltBackbone(config.stlt_config)
+        self.appearance_branch = TransformerResnet(config.appearance_config)
+        self.classifier = FusionHead(config)
+
+    def forward(self, batch: Dict[str, torch.Tensor]):
+        # [Num. Lay. frames, Batch size, Hidden size]
+        layout_output = self.layout_branch(batch)
+        # [Batch size, Hidden size]
+        batches = torch.arange(batch["categories"].size()[0]).to(
+            batch["categories"].device
+        )
+        layout_output = layout_output[batch["lengths"] - 1, batches, :]
+        # [Num. App. frames, Batch size, Hidden size]
+        appearance_output = self.appearance_branch.forward_features(batch)
+        # [Batch size, Hidden size]
+        appearance_output = appearance_output[0, :, :]
+        # [Batch size, Hidden size * 2]
+        fused_features = torch.cat((layout_output, appearance_output), dim=-1)
+
+        return self.classifier(fused_features)
+
+
 models_factory = {
+    "stlt": Stlt,
     "resnet3d": Resnet3D,
     "resnet3d-transformer": TransformerResnet,
-    "stlt": Stlt,
+    "lcf": LateConcatenationFusion,
 }

@@ -292,7 +292,11 @@ class AppearanceDataset(Dataset):
             int(self.labels[re.sub("[\[\]]", "", self.json_file[idx]["template"])])
         )
 
-        return {"video_id": video_id, "frames": video_frames, "labels": video_label}
+        return {
+            "video_id": video_id,
+            "video_frames": video_frames,
+            "labels": video_label,
+        }
 
 
 class MultimodalDataset(Dataset):
@@ -301,6 +305,9 @@ class MultimodalDataset(Dataset):
         self.appearance_dataset = AppearanceDataset(
             config, self.layout_dataset.json_file
         )
+        # Making a shallow copy of the labels
+        # for easier interfacing in train.py and inference.py
+        self.labels = self.layout_dataset.labels
 
     def __len__(self):
         return self.layout_dataset.__len__()
@@ -310,7 +317,7 @@ class MultimodalDataset(Dataset):
         appearance_dict = self.appearance_dataset[idx]
 
         # layout_dict and appearance_dict have overlapping video_id and actions
-        return {**layout_dict, **appearance_dict}
+        return {"layout": layout_dict, "appearance": appearance_dict}
 
 
 datasets_factory = {
@@ -378,7 +385,7 @@ class AppearanceCollater:
 
     def __call__(self, batch):
         batch = {key: [e[key] for e in batch] for key in batch[0].keys()}
-        batch["videos"] = torch.stack(batch["videos"], dim=0)
+        batch["video_frames"] = torch.stack(batch["video_frames"], dim=0)
         batch["labels"] = torch.stack(batch["labels"], dim=0)
 
         return batch
@@ -391,10 +398,16 @@ class MultiModalCollater:
         self.appearance_collater = AppearanceCollater(config)
 
     def __call__(self, batch):
-        layout_batch = self.layout_collater(batch)
-        appearance_batch = self.appearance_collater(batch)
+        # Layout batch
+        layout_batch = [e["layout"] for e in batch]
+        layout_batch = self.layout_collater(layout_batch)
+        # Appearance batch
+        appearance_batch = [e["appearance"] for e in batch]
+        appearance_batch = self.appearance_collater(appearance_batch)
+        # Combine batches
+        joint_batch = {**layout_batch, **appearance_batch}
 
-        return {**layout_batch, **appearance_batch}
+        return joint_batch
 
 
 collaters_factory = {

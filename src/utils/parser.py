@@ -137,6 +137,12 @@ class Parser:
             help="The name of the model.",
         )
         self.parser.add_argument(
+            "--resnet_model_path",
+            type=str,
+            default=None,
+            help="Path to the pre-trained ResNet3D.",
+        )
+        self.parser.add_argument(
             "--save_model_path",
             type=str,
             default="models/best.pt",
