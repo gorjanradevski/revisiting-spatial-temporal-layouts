@@ -4,12 +4,12 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from modelling.datasets import DataConfig, datasets_factory, collaters_factory
+from modelling.datasets import DataConfig, collaters_factory, datasets_factory
 from modelling.model_configs import model_configs_factory
 from modelling.models import models_factory
-from utils.train_inference_utils import get_device
 from utils.evaluation import evaluators_factory
 from utils.parser import Parser
+from utils.train_inference_utils import get_device, move_batch_to_device
 
 
 @torch.no_grad()
@@ -60,7 +60,8 @@ def inference(args):
         model.load_state_dict(torch.load(args.checkpoint_path, map_location=device))
     except RuntimeError as e:
         logging.warning(
-            "Default loading failed, loading with strict=False. See exception below."
+            "Default loading failed, loading with strict=False. If it's only "
+            "score_embedding modules it's ok. Otherwise see exception below"
         )
         logging.warning(e)
         model.load_state_dict(
@@ -68,12 +69,11 @@ def inference(args):
         )
     model.train(False)
     logging.info("Starting inference...")
-    evaluator = evaluators_factory[args.dataset_name](num_samples, num_classes)
+    evaluator = evaluators_factory[args.dataset_name](
+        num_samples, num_classes, model.logit_names
+    )
     for batch in tqdm(test_loader):
-        batch = {
-            key: val.to(device) if isinstance(val, torch.Tensor) else val
-            for key, val in batch.items()
-        }
+        batch = move_batch_to_device(batch, device)
         logits = model(batch)
         evaluator.process(logits, batch["labels"])
 

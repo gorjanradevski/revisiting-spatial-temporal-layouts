@@ -7,15 +7,16 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from modelling.datasets import DataConfig, datasets_factory, collaters_factory
-from modelling.models import models_factory
+from modelling.datasets import DataConfig, collaters_factory, datasets_factory
 from modelling.model_configs import model_configs_factory
-from utils.train_inference_utils import get_device
+from modelling.models import models_factory
 from utils.evaluation import evaluators_factory
 from utils.parser import Parser
 from utils.train_inference_utils import (
     add_weight_decay,
+    get_device,
     get_linear_schedule_with_warmup,
+    move_batch_to_device,
 )
 
 
@@ -112,7 +113,7 @@ def train(args):
         num_training_steps=args.epochs * num_batches,
     )
     evaluator = evaluators_factory[args.dataset_name](
-        num_validation_samples, num_classes
+        num_validation_samples, num_classes, model.logit_names
     )
     logging.info("Starting training...")
     for epoch in range(args.epochs):
@@ -123,14 +124,13 @@ def train(args):
                 # Remove past gradients
                 optimizer.zero_grad()
                 # Move tensors to device
-                batch = {
-                    key: val.to(device) if isinstance(val, torch.Tensor) else val
-                    for key, val in batch.items()
-                }
+                batch = move_batch_to_device(batch, device)
                 # Obtain outputs
                 logits = model(batch)
                 # Measure loss and update weights
-                loss = criterion(logits, batch["labels"])
+                loss = sum(
+                    [criterion(logits[key], batch["labels"]) for key in logits.keys()]
+                ) / len(logits)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_val)
                 optimizer.step()
@@ -144,10 +144,7 @@ def train(args):
         evaluator.reset()
         with torch.no_grad():
             for batch in tqdm(val_loader):
-                batch = {
-                    key: val.to(device) if isinstance(val, torch.Tensor) else val
-                    for key, val in batch.items()
-                }
+                batch = move_batch_to_device(batch, device)
                 logits = model(batch)
                 evaluator.process(logits, batch["labels"])
         # Saving logic

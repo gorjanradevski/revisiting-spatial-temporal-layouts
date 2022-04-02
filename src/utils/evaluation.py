@@ -1,42 +1,70 @@
 import numpy as np
+from typing import Tuple
 
 
 class EvaluatorSomething:
-    def __init__(self, total_instances: int, total_classes: int):
-        self.reset()
+    def __init__(
+        self, total_instances: int, total_classes: int, logit_names: Tuple[str]
+    ):
         self.total_instances = total_instances
+        self.total_classes = total_classes
+        self.logit_names = logit_names
+        self.reset()
         self.best_acc = 0.0
 
     def reset(self):
-        self.corrects_top1 = 0
-        self.corrects_top5 = 0
+        self.corrects = {}
+        for logit_name in self.logit_names:
+            self.corrects[f"{logit_name}_top1"] = 0
+            self.corrects[f"{logit_name}_top5"] = 0
 
     def process(self, logits, labels):
-        self.corrects_top1 += (logits.cpu().argmax(-1) == labels.cpu()).sum().item()
-        self.corrects_top5 += (
-            (logits.cpu().topk(k=5).indices == labels.cpu().unsqueeze(1))
-            .any(dim=1)
-            .sum()
-        ).item()
+        assert len(logits) == len(self.logit_names)
+        for logit_name in self.logit_names:
+            self.corrects[f"{logit_name}_top1"] += (
+                (logits[logit_name].cpu().argmax(-1) == labels.cpu()).sum().item()
+            )
+            self.corrects[f"{logit_name}_top5"] += (
+                (
+                    logits[logit_name].cpu().topk(k=5).indices
+                    == labels.cpu().unsqueeze(1)
+                )
+                .any(dim=1)
+                .sum()
+            ).item()
 
     def evaluate(self):
-        top1_accuracy = self.corrects_top1 / self.total_instances
-        top5_accuracy = self.corrects_top5 / self.total_instances
+        metrics = {}
+        for logit_name in self.logit_names:
+            metrics[f"{logit_name}_top1_accuracy"] = (
+                self.corrects[f"{logit_name}_top1"] / self.total_instances
+            )
+            metrics[f"{logit_name}_top5_accuracy"] = (
+                self.corrects[f"{logit_name}_top5"] / self.total_instances
+            )
 
-        return {"top1_accuracy": top1_accuracy, "top5_accuracy": top5_accuracy}
+        return metrics
 
     def is_best(self):
         metrics = self.evaluate()
-        if (metrics["top1_accuracy"] + metrics["top5_accuracy"]) / 2 > self.best_acc:
-            self.best_acc = (metrics["top1_accuracy"] + metrics["top5_accuracy"]) / 2
+        # Get currect accuracy
+        cur_accuracy = sum(
+            [metrics[accuracy_type] for accuracy_type in metrics.keys()]
+        ) / len(metrics)
+        # Validate whether it's the best model
+        if cur_accuracy > self.best_acc:
+            self.best_acc = cur_accuracy
             return True
         return False
 
 
 class EvaluatorActionGenome:
-    def __init__(self, total_instances: int, total_classes: int):
+    def __init__(
+        self, total_instances: int, total_classes: int, logit_names: Tuple[str]
+    ):
         self.total_instances = total_instances
         self.total_classes = total_classes
+        self.logit_names = logit_names
         self.reset()
         self.best_mean_average_precision = 0.0
 
@@ -46,9 +74,10 @@ class EvaluatorActionGenome:
         self.ground_truths = np.zeros((self.total_instances, self.total_classes))
 
     def process(self, logits, labels):
-        size = logits.shape[0]
+        # Action Genome only for STLT so far
+        size = logits["stlt"].shape[0]
         self.predictions[self.index : self.index + size] = (
-            logits.cpu().sigmoid().numpy()
+            logits["stlt"].cpu().sigmoid().numpy()
         )
         self.ground_truths[self.index : self.index + size] = labels.cpu().numpy()
         self.index += size

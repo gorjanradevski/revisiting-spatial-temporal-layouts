@@ -175,6 +175,7 @@ class Stlt(nn.Module):
         else:
             self.stlt_backbone = StltBackbone(config)
         self.prediction_head = ClassificationHead(config)
+        self.logit_names = ("stlt",)
 
     def train(self, mode: bool):
         super(Stlt, self).train(mode)
@@ -189,8 +190,9 @@ class Stlt(nn.Module):
             batch["categories"].device
         )
         stlt_output = stlt_output[batch["lengths"] - 1, batches, :]
+        logits = (self.prediction_head(stlt_output),)
 
-        return self.prediction_head(stlt_output)
+        return {k: v for k, v in zip(self.logit_names, logits)}
 
 
 class Resnet3D(nn.Module):
@@ -208,6 +210,7 @@ class Resnet3D(nn.Module):
         if config.num_classes > 0:
             self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
             self.classifier = nn.Linear(2048, config.num_classes)
+        self.logit_names = ("resnet3d",)
 
     def train(self, mode: bool):
         super(Resnet3D, self).train(mode)
@@ -221,9 +224,9 @@ class Resnet3D(nn.Module):
     def forward(self, batch):
         features = self.forward_features(batch)
         features = self.avgpool(features).flatten(1)
-        logits = self.classifier(features)
+        logits = (self.classifier(features),)
 
-        return logits
+        return {k: v for k, v in zip(self.logit_names, logits)}
 
 
 class TransformerResnet(nn.Module):
@@ -272,8 +275,9 @@ class TransformerResnet(nn.Module):
         features = self.forward_features(batch)
         # [Batch size, Hidden size]
         cls_state = features[0, :, :]
+        logits = (self.classifier(cls_state),)
 
-        return self.classifier(cls_state)
+        return {k: v for k, v in zip(self.resnet.logit_names, logits)}
 
     def no_weight_decay(self):
         return {"pos_embed", "cls_token"}
@@ -291,11 +295,13 @@ class FusionHead(nn.Module):
 
 
 class LateConcatenationFusion(nn.Module):
+    # LCF
     def __init__(self, config: MultimodalModelConfig):
         super(LateConcatenationFusion, self).__init__()
         self.layout_branch = StltBackbone(config.stlt_config)
         self.appearance_branch = TransformerResnet(config.appearance_config)
         self.classifier = FusionHead(config)
+        self.lcf = ("lcf",)
 
     def forward(self, batch: Dict[str, torch.Tensor]):
         # [Num. Lay. frames, Batch size, Hidden size]
@@ -311,8 +317,234 @@ class LateConcatenationFusion(nn.Module):
         appearance_output = appearance_output[0, :, :]
         # [Batch size, Hidden size * 2]
         fused_features = torch.cat((layout_output, appearance_output), dim=-1)
+        logits = (self.classifier(fused_features),)
 
-        return self.classifier(fused_features)
+        return {k: v for k, v in zip(self.logit_names, logits)}
+
+
+# CAF and CACNF, and related modules
+
+
+class FeedforwardModule(nn.Module):
+    def __init__(self, config: MultimodalModelConfig):
+        super(FeedforwardModule, self).__init__()
+        self.linear1 = nn.Linear(config.hidden_size, config.hidden_size * 4)
+        self.linear2 = nn.Linear(config.hidden_size * 4, config.hidden_size)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.ln = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+
+    def forward(self, inputs: torch.Tensor):
+        hidden_states = self.dropout(self.linear2(F.gelu(self.linear1(inputs))))
+        hidden_states = self.ln(hidden_states + inputs)
+        return hidden_states
+
+
+class SelfAttentionLayer(nn.Module):
+    def __init__(self, config: MultimodalModelConfig):
+        super(SelfAttentionLayer, self).__init__()
+        self.attn = nn.MultiheadAttention(
+            embed_dim=config.hidden_size,
+            num_heads=config.num_attention_heads,
+            dropout=config.hidden_dropout_prob,
+        )
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.ln = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+
+    def forward(self, inputs, causal_mask=None, key_padding_mask=None):
+        hidden_states = self.attn(
+            inputs,
+            inputs,
+            inputs,
+            key_padding_mask=key_padding_mask,
+            attn_mask=causal_mask,
+        )[0]
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = self.ln(hidden_states + inputs)
+
+        return hidden_states
+
+
+class CrossAttentionLayer(nn.Module):
+    def __init__(self, config: MultimodalModelConfig):
+        super(CrossAttentionLayer, self).__init__()
+        self.attn = nn.MultiheadAttention(
+            embed_dim=config.hidden_size,
+            num_heads=config.num_attention_heads,
+            dropout=config.hidden_dropout_prob,
+        )
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.ln = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+
+    def forward(self, inputs, context, context_padding_mask=None):
+        hidden_states = self.attn(
+            inputs,
+            context,
+            context,
+            key_padding_mask=context_padding_mask,
+        )[0]
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = self.ln(hidden_states + inputs)
+
+        return hidden_states
+
+
+class CrossModalModule(nn.Module):
+    def __init__(self, config: MultimodalModelConfig):
+        super(CrossModalModule, self).__init__()
+        # Cross-attention
+        self.cross_attn = CrossAttentionLayer(config)
+        # Layout-Appearance self-attention
+        self.layout_attn = SelfAttentionLayer(config)
+        self.layout_ffn = FeedforwardModule(config)
+        # Appearance-Layout self-attention
+        self.appearance_attn = SelfAttentionLayer(config)
+        self.appearance_ffn = SelfAttentionLayer(config)
+
+    def forward(
+        self,
+        layout_hidden_states,
+        appearance_hidden_states,
+        causal_attn_mask_layout,
+        src_key_padding_mask_layout,
+    ):
+        # Cross-attention
+        layout_attn_output = self.cross_attn(
+            layout_hidden_states,
+            appearance_hidden_states,
+        )
+        appearance_attn_output = self.cross_attn(
+            appearance_hidden_states,
+            layout_hidden_states,
+            src_key_padding_mask_layout,
+        )
+        # Self-attention
+        layout_attn_output = self.layout_attn(
+            layout_attn_output,
+            causal_mask=causal_attn_mask_layout,
+            key_padding_mask=src_key_padding_mask_layout,
+        )
+        appearance_attn_output = self.appearance_attn(appearance_attn_output)
+        # Feed-forward
+        layout_output = self.layout_ffn(layout_attn_output)
+        appearance_output = self.appearance_ffn(appearance_attn_output)
+
+        return layout_output, appearance_output
+
+
+class CrossAttentionFusionBackbone(nn.Module):
+    # Backbone for CAF and CACNF
+    def __init__(self, config: MultimodalModelConfig):
+        super(CrossAttentionFusionBackbone, self).__init__()
+        # Unimodal embeddings
+        self.layout_brach = StltBackbone(config)
+        self.appearance_branch = TransformerResnet(config)
+        # Multimodal embeddings
+        self.mm_fusion = nn.ModuleList(
+            [CrossModalModule(config) for _ in range(config.num_fusion_layers)]
+        )
+
+    def forward(self, batch: Dict[str, torch.Tensor]):
+        causal_mask_frames = generate_square_subsequent_mask(
+            batch["categories"].size()[1]
+        ).to(batch["categories"].device)
+        # [Lay. num. frames, Batch size, Hidden size]
+        layout_hidden_states = self.layout_encoder(batch)
+        # [App. num. frames, Batch size, Hidden size]
+        appearance_hidden_states = self.resnet_encoder.forward_features(
+            batch["video_frames"]
+        )
+        # Get hidden states for individual branches
+        # [Batch size, Hidden size]
+        batches = torch.arange(batch["categories"].size()[0]).to(
+            batch["categories"].device
+        )
+        layout_hidden_state = layout_hidden_states[batch["lengths"] - 1, batches, :]
+        appearance_hidden_state = appearance_hidden_states[0, :, :]
+        # Multimodal fusion
+        for layer in self.mm_fusion:
+            layout_hidden_states, appearance_hidden_states = layer(
+                layout_hidden_states,
+                appearance_hidden_states,
+                causal_mask_frames,
+                batch["src_key_padding_mask_frames"],
+            )
+        # Get fused hidden state
+        # [Batch size, Hidden size]
+        last_fused_state = torch.cat(
+            (
+                layout_hidden_states[batch["lengths"] - 1, batches, :],
+                appearance_hidden_states[0, :, :],
+            ),
+            dim=-1,
+        )
+
+        return {
+            "layout_hidden_state": layout_hidden_state,
+            "appearance_hidden_state": appearance_hidden_state,
+            "last_fused_state": last_fused_state,
+        }
+
+
+class CrossAttentionFusion(nn.Module):
+    # CAF
+    def __init__(self, config: MultimodalModelConfig):
+        super(CrossAttentionFusion, self).__init__()
+        self.caf_backbone = CrossAttentionFusionBackbone(config)
+        # Classifier
+        self.classifier = FusionHead(config)
+        self.logit_names = ("caf",)
+
+    def forward(self, batch: Dict[str, torch.Tensor]):
+        cross_attention_fusion_embeddings = self.caf_backbone(batch)
+        # [Batch size, Hidden size * 2]
+        last_fused_state = cross_attention_fusion_embeddings["last_fused_state"]
+        logits = (self.classifier(last_fused_state),)
+
+        return {k: v for k, v in zip(self.logit_names, logits)}
+
+
+class CrossAttentionCentralNetFusion(nn.Module):
+    # CACNF
+    def __init__(self, config: MultimodalModelConfig):
+        super(CrossAttentionCentralNetFusion, self).__init__()
+        self.config = config
+        if config.load_backbone_path is not None:
+            self.backbone = CrossAttentionFusionBackbone.from_pretrained(config)
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+        else:
+            self.backbone = CrossAttentionFusionBackbone(config)
+        # Classifiers
+        self.layout_classifier = ClassificationHead(config)
+        self.appearance_classifier = ClassificationHead(config)
+        self.fusion_classifier = FusionHead(config)
+        self.logit_names = ("stlt", "resnet3d", "caf", "ensemble")
+
+    def train(self, mode: bool):
+        super(CrossAttentionCentralNetFusion, self).train(mode)
+        if self.config.load_backbone_path:
+            self.backbone.train(False)
+
+    def forward(self, batch: Dict[str, torch.Tensor]):
+        cross_attention_fusion_embeddings = self.backbone(batch)
+        logits = ()
+        # Unimodal part
+        # [Batch size, Num. classes]
+        logits += self.layout_classifier(
+            cross_attention_fusion_embeddings["layout_hidden_state"]
+        )
+        logits += self.appearance_classifier(
+            cross_attention_fusion_embeddings["appearance_hidden_state"]
+        )
+        # Multimodal part
+        # [Batch size, Hidden size * 2]
+        last_fused_state = cross_attention_fusion_embeddings["last_fused_state"]
+        # [Batch size, Num. classes]
+        logits += self.fusion_classifier(last_fused_state)
+        # Ensemble
+        logits += (sum(logits) / 3,)
+
+        return {k: v for k, v in zip(self.logit_names, logits)}
 
 
 models_factory = {
@@ -320,4 +552,6 @@ models_factory = {
     "resnet3d": Resnet3D,
     "resnet3d-transformer": TransformerResnet,
     "lcf": LateConcatenationFusion,
+    "caf": CrossAttentionFusion,
+    "cacnf": CrossAttentionCentralNetFusion,
 }
