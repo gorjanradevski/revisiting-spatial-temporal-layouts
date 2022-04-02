@@ -168,23 +168,23 @@ class Stlt(nn.Module):
         super(Stlt, self).__init__()
         self.config = config
         if config.load_backbone_path is not None:
-            self.stlt_backbone = StltBackbone.from_pretrained(config)
+            self.backbone = StltBackbone.from_pretrained(config)
             if config.freeze_backbone:
-                for param in self.stlt_backbone.parameters():
+                for param in self.backbone.parameters():
                     param.requires_grad = False
         else:
-            self.stlt_backbone = StltBackbone(config)
+            self.backbone = StltBackbone(config)
         self.prediction_head = ClassificationHead(config)
         self.logit_names = ("stlt",)
 
     def train(self, mode: bool):
         super(Stlt, self).train(mode)
         if self.config.load_backbone_path and self.config.freeze_backbone:
-            self.stlt_backbone.train(False)
+            self.backbone.train(False)
 
     def forward(self, batch: Dict[str, torch.Tensor]):
         # [Num. frames, Batch size, Hidden size]
-        stlt_output = self.stlt_backbone(batch)
+        stlt_output = self.backbone(batch)
         # [Batch size, Hidden size]
         batches = torch.arange(batch["categories"].size()[0]).to(
             batch["categories"].device
@@ -301,7 +301,7 @@ class LateConcatenationFusion(nn.Module):
         self.layout_branch = StltBackbone(config.stlt_config)
         self.appearance_branch = TransformerResnet(config.appearance_config)
         self.classifier = FusionHead(config)
-        self.lcf = ("lcf",)
+        self.logit_names = ("lcf",)
 
     def forward(self, batch: Dict[str, torch.Tensor]):
         # [Num. Lay. frames, Batch size, Hidden size]

@@ -1,7 +1,8 @@
 import logging
+from typing import Dict
 
 import torch
-from torch import optim
+from torch import nn, optim
 
 
 def get_device(logger: logging.Logger):
@@ -58,3 +59,16 @@ def move_batch_to_device(batch, device):
         key: val.to(device) if isinstance(val, torch.Tensor) else val
         for key, val in batch.items()
     }
+
+
+class Criterion(nn.Module):
+    def __init__(self, dataset_name: str):
+        super(Criterion, self).__init__()
+        self.loss_function = (
+            nn.CrossEntropy() if dataset_name == "something" else nn.BCEWithLogitsLoss()
+        )
+
+    def forward(self, logits: Dict[str, torch.Tensor], labels: torch.Tensor):
+        return sum(
+            [self.loss_function(logits[key], labels) for key in logits.keys()]
+        ) / len(logits)

@@ -2,8 +2,7 @@ import logging
 import os
 
 import torch
-import torch.optim as optim
-from torch import nn
+from torch import optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -17,6 +16,7 @@ from utils.train_inference_utils import (
     get_device,
     get_linear_schedule_with_warmup,
     move_batch_to_device,
+    Criterion,
 )
 
 
@@ -98,12 +98,8 @@ def train(args):
     logging.info(f"The model's configuration is:\n{model_config}")
     logging.info("==================================")
     model = models_factory[args.model_name](model_config).to(device)
-    # Prepare loss and optimize. Hack for the loss but easy :(
-    criterion = (
-        nn.CrossEntropy()
-        if args.dataset_name == "something"
-        else nn.BCEWithLogitsLoss()
-    )
+    # Prepare loss and optimize
+    criterion = Criterion(args.dataset_name)
     parameters = add_weight_decay(model, args.weight_decay)
     optimizer = optim.AdamW(parameters, lr=args.learning_rate)
     num_batches = len(train_dataset) // args.batch_size
@@ -128,9 +124,7 @@ def train(args):
                 # Obtain outputs
                 logits = model(batch)
                 # Measure loss and update weights
-                loss = sum(
-                    [criterion(logits[key], batch["labels"]) for key in logits.keys()]
-                ) / len(logits)
+                loss = criterion(logits, batch["labels"])
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_val)
                 optimizer.step()
