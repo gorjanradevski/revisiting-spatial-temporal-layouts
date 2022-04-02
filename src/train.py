@@ -6,8 +6,8 @@ from torch import optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from modelling.datasets import DataConfig, collaters_factory, datasets_factory
-from modelling.model_configs import model_configs_factory
+from modelling.datasets import collaters_factory, datasets_factory
+from modelling.configs import model_configs_factory, DataConfig
 from modelling.models import models_factory
 from utils.evaluation import evaluators_factory
 from utils.parser import Parser

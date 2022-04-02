@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 from utils.model_utils import generate_square_subsequent_mask
 
-from modelling.model_configs import (
+from modelling.configs import (
     AppearanceModelConfig,
     MultimodalModelConfig,
     StltModelConfig,

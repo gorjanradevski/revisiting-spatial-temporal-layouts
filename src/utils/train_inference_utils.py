@@ -65,7 +65,9 @@ class Criterion(nn.Module):
     def __init__(self, dataset_name: str):
         super(Criterion, self).__init__()
         self.loss_function = (
-            nn.CrossEntropy() if dataset_name == "something" else nn.BCEWithLogitsLoss()
+            nn.CrossEntropyLoss()
+            if dataset_name == "something"
+            else nn.BCEWithLogitsLoss()
         )
 
     def forward(self, logits: Dict[str, torch.Tensor], labels: torch.Tensor):

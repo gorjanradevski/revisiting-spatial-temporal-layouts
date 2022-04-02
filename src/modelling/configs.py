@@ -1,5 +1,95 @@
-# Stores the model configs
-class GeneralConfig:
+# Stores the data and model configs
+
+
+class DataConfig:
+    def __init__(
+        self,
+        dataset_name: str,
+        dataset_path: str,
+        labels_path: str,
+        videoid2size_path: str,
+        videos_path: str,
+        train: bool,
+        **kwargs,
+    ):
+        assert (
+            dataset_name == "something" or dataset_name == "action_genome"
+        ), f"{dataset_name} does not exist!"
+        self.dataset_name = dataset_name
+        self.dataset_path = dataset_path
+        self.labels_path = labels_path
+        self.videoid2size_path = videoid2size_path
+        self.videos_path = videos_path
+        self.train = train
+        self.layout_num_frames = kwargs.pop("layout_num_frames", 16)
+        self.max_num_objects = kwargs.pop("max_num_objects", 7)
+        self.score_threshold = kwargs.pop("score_threshold", 0.5)
+        self.appearance_num_frames = kwargs.pop("appearance_num_frames", 32)
+        self.spatial_size = kwargs.pop("spatial_size", 112)
+        # Hacking :(
+        self.category2id = (
+            {
+                "pad": 0,
+                "hand": 1,
+                "object": 2,
+                "cls": 3,
+            }
+            if self.dataset_name == "something"
+            else {
+                "pad": 0,
+                "cls": 1,
+                "chair": 2,
+                "book": 3,
+                "medicine": 4,
+                "vacuum": 5,
+                "food": 6,
+                "groceries": 7,
+                "floor": 8,
+                "mirror": 9,
+                "closet/cabinet": 10,
+                "doorway": 11,
+                "paper/notebook": 12,
+                "picture": 13,
+                "phone/camera": 14,
+                "sofa/couch": 15,
+                "sandwich": 16,
+                "cup/glass/bottle": 17,
+                "towel": 18,
+                "box": 19,
+                "blanket": 20,
+                "television": 21,
+                "bag": 22,
+                "refrigerator": 23,
+                "table": 24,
+                "light": 25,
+                "broom": 26,
+                "shoe": 27,
+                "doorknob": 28,
+                "bed": 29,
+                "window": 30,
+                "shelf": 31,
+                "door": 32,
+                "pillow": 33,
+                "laptop": 34,
+                "dish": 35,
+                "clothes": 36,
+                "person": 37,
+            }
+        )
+        self.frame2type = (
+            {
+                "pad": 0,
+                "start": 1,
+                "regular": 2,
+                "empty": 3,
+                "extract": 4,
+            }
+            if self.dataset_name == "something"
+            else {"pad": 0, "regular": 1, "extract": 2, "empty": 3}
+        )
+
+
+class GeneralModelConfig:
     def __init__(self, **kwargs):
         self.num_classes = kwargs.pop("num_classes", None)
         assert self.num_classes, "num_classes must not be None!"
@@ -9,7 +99,7 @@ class GeneralConfig:
         self.num_attention_heads = kwargs.pop("num_attention_heads", 12)
 
 
-class StltModelConfig(GeneralConfig):
+class StltModelConfig(GeneralModelConfig):
     def __init__(self, **kwargs):
         super(StltModelConfig, self).__init__(**kwargs)
         self.unique_categories = kwargs.pop("unique_categories", None)
@@ -36,7 +126,7 @@ class StltModelConfig(GeneralConfig):
         )
 
 
-class AppearanceModelConfig(GeneralConfig):
+class AppearanceModelConfig(GeneralModelConfig):
     def __init__(self, **kwargs):
         super(AppearanceModelConfig, self).__init__(**kwargs)
         self.appearance_num_frames = kwargs.pop("appearance_num_frames", None)
@@ -57,7 +147,7 @@ class AppearanceModelConfig(GeneralConfig):
         )
 
 
-class MultimodalModelConfig(GeneralConfig):
+class MultimodalModelConfig(GeneralModelConfig):
     def __init__(self, **kwargs):
         super(MultimodalModelConfig, self).__init__(**kwargs)
         # Not perfect way of creating the configs...
