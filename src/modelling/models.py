@@ -528,17 +528,21 @@ class CrossAttentionCentralNetFusion(nn.Module):
         logits = ()
         # Unimodal part
         # [Batch size, Num. classes]
-        logits += self.layout_classifier(
-            cross_attention_fusion_embeddings["layout_hidden_state"]
+        logits += (
+            self.layout_classifier(
+                cross_attention_fusion_embeddings["layout_hidden_state"]
+            ),
         )
-        logits += self.appearance_classifier(
-            cross_attention_fusion_embeddings["appearance_hidden_state"]
+        logits += (
+            self.appearance_classifier(
+                cross_attention_fusion_embeddings["appearance_hidden_state"]
+            ),
         )
         # Multimodal part
         # [Batch size, Hidden size * 2]
         last_fused_state = cross_attention_fusion_embeddings["last_fused_state"]
         # [Batch size, Num. classes]
-        logits += self.fusion_classifier(last_fused_state)
+        logits += (self.fusion_classifier(last_fused_state),)
         # Ensemble
         logits += (sum(logits) / 3,)
 

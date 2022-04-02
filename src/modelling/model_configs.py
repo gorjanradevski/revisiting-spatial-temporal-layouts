@@ -64,6 +64,8 @@ class MultimodalModelConfig(GeneralConfig):
         self.stlt_config = StltModelConfig(**kwargs)
         self.appearance_config = AppearanceModelConfig(**kwargs)
         self.num_fusion_layers = kwargs.pop("num_fusion_layers", 4)
+        self.load_backbone_path = kwargs.pop("load_backbone_path", None)
+        self.freeze_backbone = kwargs.pop("freeze_backbone", False)
 
     def __repr__(self):
         stlt_repr = "*** Layout branch config: \n" + self.stlt_config.__repr__() + "\n"
@@ -77,7 +79,9 @@ class MultimodalModelConfig(GeneralConfig):
             stlt_repr
             + appearance_repr
             + "*** Fusion module config: \n"
-            + f"- Num fusion layers: {self.num_fusion_layers}"
+            + f"- Num fusion layers: {self.num_fusion_layers}\n"
+            + f"- The backbone path is: {self.load_backbone_path}\n"
+            + f"- Freezing the backbone: {self.freeze_backbone}"
         )
 
 
