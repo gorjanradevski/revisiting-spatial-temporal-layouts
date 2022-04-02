@@ -15,7 +15,9 @@ If you use [Poetry](https://python-poetry.org/), running ```poetry install``` in
 You need to download the [data splits and labels](https://github.com/joaanna/something_else/tree/master/code/dataset_splits), the [annotations](https://drive.google.com/drive/folders/1XqZC2jIHqrLPugPOVJxCH_YWa275PBrZ), and the [video sizes](https://drive.google.com/file/d/1ANaDAxXoA63CA9zXalnmaskqfO4cftW4/view?usp=sharing). Make sure that the annotations for the split you want to create datasets for are in a single directory. Then, use ```create_something_datasets.py``` to create the training and test datasets as:
 
 ```python
-python src/create_something_datasets.py --train_data_path "data/path-to-the-train-file.json" --val_data_path "data/path-to-the-val-file.json" --annotations_path "data/all-annotations-for-the-split/"
+python src/create_something_datasets.py --train_data_path "data/path-to-the-train-file.json"
+                                        --val_data_path "data/path-to-the-val-file.json"
+                                        --annotations_path "data/all-annotations-for-the-split/"
 ```
 
 ### Action-Genome
@@ -23,30 +25,50 @@ python src/create_something_datasets.py --train_data_path "data/path-to-the-trai
 You need to download the [Action Genome data](https://drive.google.com/drive/folders/1LGGPK_QgGbh9gH9SDFv_9LIhBliZbZys) and the [Charades data](https://ai2-public-datasets.s3-us-west-2.amazonaws.com/charades/Charades.zip). Then, use ```create_action_genome_datasets.py``` to create the training and test datasets as:
 
 ```python
-python src/create_action_genome_datasets.py --action_genome_path "data/path-to-action-genome" --charades_path "data/path-to-charades" --save_datasets_path "data/directory-where-the-data-will-be-saved"
+python src/create_action_genome_datasets.py --action_genome_path "data/path-to-action-genome"
+                                            --charades_path "data/path-to-charades"
+                                            --save_datasets_path "data/directory-where-the-data-will-be-saved"
 ```
-
-## Training and Inference
-
-The codebase currently only supports training and inference of STLT models. Refer to the ```train_stlt.py``` and the ```inference_stlt.py``` scripts. More detailed instructions will be released soon.
 
 ## Model Zoo
 
+Trained models currently available for the Something-Else and the Action Genome dataset. If a model is not currently available and you need it, feel free to reach out as we are still in the process of releasing the models (Including Something-Something V2).
+
 | Model | Dataset | Download |
 | :--- | :--- | :--- |
-| STLT | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1mSwN68F6UgaZsJ91hFt9up4XPlnP8ouz/view?usp=sharing) |
-| STLT | Something-Else Compositional Split Oracle | [Link](https://drive.google.com/file/d/1PSIEgGhE9XwLwW-XMvWiRUZZhCVeSxbT/view?usp=sharing) |
-| STLT backbone | Something-Else Detections Base split | [Link](https://drive.google.com/file/d/1CnQ89ipXjFkSkWIxaMzDVszlQ3LJ1ctK/view?usp=sharing) |
-| STLT | Something-Else 10-shot Detections | [Link](https://drive.google.com/file/d/1W3ezhdTW7xLurSfiW36QIzeR21Zcatmt/view?usp=sharing) |
-| STLT | Something-Else 5-shot Detections | [Link](https://drive.google.com/file/d/1V98gUlQitPB6uQ0pYBfCc9_vYXcsvajO/view?usp=sharing) |
-| STLT backbone | Something-Else Oracle Base split | [Link](https://drive.google.com/file/d/1hIuDy8tmD83ibY0oT1fhQBpUSs8qMsWK/view?usp=sharing) |
-| STLT | Something-Else 10-shot Oracle | [Link](https://drive.google.com/file/d/10YkKPXNrjQkMIxrFSMb4lR_csgnLYSyb/view?usp=sharing) |
-| STLT | Something-Else 5-shot Oracle | [Link](https://drive.google.com/file/d/1_4yxNvgMT_mzKAveXdOzTYo53ZOKwT22/view?usp=sharing) |
-| STLT | Something-Something V2 Regular Split | [Link](https://drive.google.com/file/d/1aBMpqpJ2H6prF5hfBaZ5u9iyslL1jSdv/view?usp=sharing) |
-| STLT | Action Genome Oracle | [Link](https://drive.google.com/file/d/1xsQcosB-kNHW9WXRseR7jgMs_B8WsaG8/view?usp=sharing) |
-| STLT | Action Genome Detections | [Link](https://drive.google.com/file/d/1L1mfNIhI938UyM3lIfHFrmx7k5DZzf7m/view?usp=sharing) |
+| STLT | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1di61ChtFeJw2fNwNvKCx7-xJrIrmd18s/view?usp=sharing) |
+| LCF | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1hXWiCYYINznktjzzLdj5beV50ZfXZZLV/view?usp=sharing) |
+| CAF | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1PV9y5ydaNLhWMtsdS5TiIUFXENE6WZ-J/view?usp=sharing)
+| CACNF | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1-bBLbBCOe8F-byb84cZLCwMOB1w71RTk/view?usp=sharing)
+| STLT | Action Genome Oracle | [Link](https://drive.google.com/file/d/16apQ72Vpd7mt-7YC-6TT6DTvWjEC62OR/view?usp=sharing) |
+| STLT | Action Genome Detections | [Link](https://drive.google.com/file/d/12WpRPW3rn9Yr3VeeCsiGBcZ4HKvBLqSa/view?usp=sharing) |
 
-More models trained on Something-Else and Charades/Action Genome will be released soon.
+## Training and Inference
+
+The codebase currently supports training and inference of STLT, LCF, CAF, CACNF models. Refer to the ```train.py``` and the ```inference.py``` scripts. Additonally, you need to download the Resnet3D, pretrained on Kinetics and similar from [here](https://drive.google.com/file/d/1Z1agO6kKkMr-RcQz3DTptOORrqma1dQd/view?usp=sharing), and add it in `models/`. To run inference with a trained model, e.g., STLT on Something-Else Compositional split, you can do the following:
+
+```python
+poetry run python src/inference.py --checkpoint_path "models/comp_split_detect_stlt.pt" 
+                                   --test_dataset_path "data/something-somethiing/comp_split_detect/val_dataset.json"
+                                   --labels_path "data/something-something/comp_split_detect/something-something-v2-labels.json"
+                                   --videoid2size_path "data/something-something/videoid2size.json"
+                                   --dataset_type "layout"
+                                   --model_name "stlt"
+                                   --dataset_name "something"
+```
+
+To run inference with a pre-trained CACNF model you can do the following:
+
+```python
+poetry run python src/inference.py --checkpoint_path "models/something-something/comp_split_detect_cacnf.pt"                                --test_dataset_path "data/something-something/comp_split_detect/val_dataset.json"                              --labels_path "data/something-something/comp_split_detect/something-something-v2-labels.json"
+                                   --videoid2size_path "data/something-something/videoid2size.json" --batch_size 4 --dataset_type "multimodal"
+                                   --model_name "cacnf"
+                                   --dataset_name "something"
+                                   --videos_path "data/something-something/dataset.hdf5"
+                                   --resnet_model_path "models/something-something/r3d50_KMS_200ep.pth"
+```
+
+for both examples, make sure to provide your local paths to the dataset files and the pre-trained checkpoints.
 
 ## Citation
 

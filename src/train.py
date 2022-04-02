@@ -155,7 +155,7 @@ def train(args):
 
 
 def main():
-    parser = Parser("Trains a model.")
+    parser = Parser("Trains a model, currenly STLT, LCF, CAF, and CACNF.")
     train(parser.parse_args())
 
 

@@ -63,7 +63,9 @@ def create_datasets(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Creates a dataset.")
+    parser = argparse.ArgumentParser(
+        description="Creates a dataset for Something-Something and Something-Else."
+    )
     parser.add_argument(
         "--train_data_path",
         type=str,

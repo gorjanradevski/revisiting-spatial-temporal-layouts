@@ -23,7 +23,7 @@ def convert_pil_to_hdf5(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Pack PIL images as HDF5.")
+    parser = argparse.ArgumentParser(description="Packs PIL images as HDF5.")
     parser.add_argument(
         "--videoid2size_path",
         type=str,

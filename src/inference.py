@@ -86,7 +86,7 @@ def inference(args):
 
 
 def main():
-    parser = Parser("Inference with a model.")
+    parser = Parser("Inference with a model, currenly STLT, LCF, CAF, and CACNF.")
     inference(parser.parse_args())
 
 
