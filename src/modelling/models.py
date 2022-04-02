@@ -436,8 +436,8 @@ class CrossAttentionFusionBackbone(nn.Module):
     def __init__(self, config: MultimodalModelConfig):
         super(CrossAttentionFusionBackbone, self).__init__()
         # Unimodal embeddings
-        self.layout_brach = StltBackbone(config)
-        self.appearance_branch = TransformerResnet(config)
+        self.layout_branch = StltBackbone(config.stlt_config)
+        self.appearance_branch = TransformerResnet(config.appearance_config)
         # Multimodal embeddings
         self.mm_fusion = nn.ModuleList(
             [CrossModalModule(config) for _ in range(config.num_fusion_layers)]
@@ -448,11 +448,9 @@ class CrossAttentionFusionBackbone(nn.Module):
             batch["categories"].size()[1]
         ).to(batch["categories"].device)
         # [Lay. num. frames, Batch size, Hidden size]
-        layout_hidden_states = self.layout_encoder(batch)
+        layout_hidden_states = self.layout_branch(batch)
         # [App. num. frames, Batch size, Hidden size]
-        appearance_hidden_states = self.resnet_encoder.forward_features(
-            batch["video_frames"]
-        )
+        appearance_hidden_states = self.appearance_branch.forward_features(batch)
         # Get hidden states for individual branches
         # [Batch size, Hidden size]
         batches = torch.arange(batch["categories"].size()[0]).to(
