@@ -9,7 +9,6 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import (
-    ColorJitter,
     Compose,
     Normalize,
     RandomCrop,
@@ -19,12 +18,14 @@ from torchvision.transforms import (
 from torchvision.transforms import functional as TF
 from utils.data_utils import (
     IdentityTransform,
+    VideoColorJitter,
     fix_box,
     get_test_layout_indices,
     pad_sequence,
     sample_appearance_indices,
     sample_train_layout_indices,
 )
+
 from modelling.configs import DataConfig
 
 
@@ -176,12 +177,7 @@ class AppearanceDataset(Dataset):
         ]
         augment = IdentityTransform()
         if self.config.train:
-            augment = ColorJitter.get_params(
-                brightness=(0.75, 1.25),
-                contrast=(0.75, 1.25),
-                saturation=(0.75, 1.25),
-                hue=(-0.1, 0.1),
-            )
+            augment = VideoColorJitter()
             top, left, height, width = RandomCrop.get_params(
                 raw_video_frames[0],
                 (self.config.spatial_size, self.config.spatial_size),

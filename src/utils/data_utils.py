@@ -4,7 +4,8 @@ import ffmpeg
 import numpy as np
 import torch
 from PIL import Image
-from torchvision.transforms import RandomCrop
+from torchvision.transforms import ColorJitter, RandomCrop
+from torchvision.transforms import functional as TF
 
 
 def load_video(in_filepath: str):
@@ -104,6 +105,36 @@ def pad_sequence(sequences: List[torch.Tensor], pad_tensor: torch.Tensor):
 class IdentityTransform:
     def __call__(self, image: Image):
         return image
+
+
+class VideoColorJitter:
+    # Adapted from: https://github.com/pytorch/vision/blob/main/torchvision/transforms/transforms.py#L1140
+    def __init__(self):
+        (
+            self.fn_idx,
+            self.brightness_factor,
+            self.contrast_factor,
+            self.saturation_factor,
+            self.hue_factor,
+        ) = ColorJitter.get_params(
+            brightness=(0.75, 1.25),
+            contrast=(0.75, 1.25),
+            saturation=(0.75, 1.25),
+            hue=(-0.1, 0.1),
+        )
+
+    def __call__(self, img: Image):
+        for fn_id in self.fn_idx:
+            if fn_id == 0 and self.brightness_factor is not None:
+                img = TF.adjust_brightness(img, self.brightness_factor)
+            elif fn_id == 1 and self.contrast_factor is not None:
+                img = TF.adjust_contrast(img, self.contrast_factor)
+            elif fn_id == 2 and self.saturation_factor is not None:
+                img = TF.adjust_saturation(img, self.saturation_factor)
+            elif fn_id == 3 and self.hue_factor is not None:
+                img = TF.adjust_hue(img, self.hue_factor)
+
+        return img
 
 
 class ResizeBoxes:
