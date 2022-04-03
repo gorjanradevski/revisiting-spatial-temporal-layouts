@@ -2,7 +2,7 @@ import logging
 import os
 
 import torch
-from accelerate import Accelerator
+from accelerate import Accelerator, DistributedDataParallelKwargs
 from torch import optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -32,7 +32,11 @@ def train(args):
         logging.basicConfig(level=logging.INFO)
     # Check for CUDA
     gpu = torch.cuda.is_available()
-    accelerator = Accelerator(cpu=not gpu, fp16=gpu, split_batches=True)
+    accelerator = Accelerator(
+        cpu=not gpu,
+        fp16=gpu,
+        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)],
+    )
     # Prepare datasets
     if accelerator.is_main_process:
         logging.info("Preparing datasets...")
