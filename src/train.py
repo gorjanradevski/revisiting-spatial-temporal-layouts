@@ -120,7 +120,7 @@ def train(args):
     )
     # Prepare evaluator
     evaluator = evaluators_factory[args.dataset_name](
-        num_validation_samples, num_classes, model.logit_names
+        num_validation_samples, num_classes, accelerator.unwrap_model(model).logit_names
     )
     if accelerator.is_main_process:
         logging.info("Starting training...")
