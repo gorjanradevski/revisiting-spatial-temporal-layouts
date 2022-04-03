@@ -39,6 +39,7 @@ Trained models currently available for the Something-Else and the Action Genome 
 | STLT | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1di61ChtFeJw2fNwNvKCx7-xJrIrmd18s/view?usp=sharing) |
 | LCF | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1hXWiCYYINznktjzzLdj5beV50ZfXZZLV/view?usp=sharing) |
 | CAF | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1PV9y5ydaNLhWMtsdS5TiIUFXENE6WZ-J/view?usp=sharing)
+| CAF | Something-Else Compositional Split Oracle | [Link](https://drive.google.com/file/d/14YABcUvQY3CvEHUAAjuJ1AdyoRxfvreU/view?usp=sharing)
 | CACNF | Something-Else Compositional Split Detections | [Link](https://drive.google.com/file/d/1-bBLbBCOe8F-byb84cZLCwMOB1w71RTk/view?usp=sharing)
 | STLT | Action Genome Oracle | [Link](https://drive.google.com/file/d/16apQ72Vpd7mt-7YC-6TT6DTvWjEC62OR/view?usp=sharing) |
 | STLT | Action Genome Detections | [Link](https://drive.google.com/file/d/12WpRPW3rn9Yr3VeeCsiGBcZ4HKvBLqSa/view?usp=sharing) |

@@ -9,7 +9,7 @@ from modelling.configs import model_configs_factory
 from modelling.models import models_factory
 from utils.evaluation import evaluators_factory
 from utils.parser import Parser
-from utils.train_inference_utils import get_device, move_batch_to_device
+from utils.train_inference_utils import move_batch_to_device
 
 
 @torch.no_grad()
@@ -17,7 +17,7 @@ def inference(args):
     # Set up logging
     logging.basicConfig(level=logging.INFO)
     # Check for CUDA
-    device = get_device(logger=logging.getLogger(__name__))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info("Preparing dataset...")
     data_config = DataConfig(
         dataset_name=args.dataset_name,
@@ -61,7 +61,7 @@ def inference(args):
     except RuntimeError as e:
         logging.warning(
             "Default loading failed, loading with strict=False. If it's only "
-            "score_embedding modules it's ok. Otherwise see exception below"
+            "score_embedding modules it's ok. Otherwise see exception below:"
         )
         logging.warning(e)
         model.load_state_dict(

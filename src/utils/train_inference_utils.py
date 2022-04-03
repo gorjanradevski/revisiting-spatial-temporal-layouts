@@ -1,21 +1,7 @@
-import logging
 from typing import Dict
 
 import torch
 from torch import nn, optim
-
-
-def get_device(logger: logging.Logger):
-    device = torch.device("cpu")
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        for i in range(torch.cuda.device_count()):
-            logger.warning(f"{torch.cuda.get_device_properties(f'cuda:{i}')}")
-            logger.warning(
-                f"Current occupied memory: {torch.cuda.memory_allocated(i) * 1e-9} GB"
-            )
-    logging.warning(f"Using device {device}!!!")
-    return device
 
 
 def get_linear_schedule_with_warmup(
